@@ -7,24 +7,29 @@
     <style>
       body { font-family: Arial, sans-serif; margin: 0; background: #f4f6f8; }
       .container { max-width: 620px; margin: 40px auto; background: #fff; padding: 24px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,.08); }
+      .logo { width: 100%; max-width: 200px; display: block; margin: 0 0 12px 0; border-radius: 6px; }
       h1 { margin-top: 0; font-size: 1.5rem; }
       p { color: #444; }
       label { font-weight: 600; display: block; margin-top: 14px; }
       input, select { width: 100%; padding: 10px; border: 1px solid #cfd6dd; border-radius: 8px; margin-top: 6px; box-sizing: border-box; }
       .dias-group { margin-top: 10px; display: grid; grid-template-columns: repeat(5, minmax(80px, 1fr)); gap: 8px; }
       .dias-group label { font-weight: 400; margin: 0; display: flex; gap: 6px; align-items: center; }
-      button { margin-top: 20px; width: 100%; padding: 12px; background: #0b5ed7; color: #fff; border: 0; border-radius: 8px; font-size: 1rem; cursor: pointer; }
-      button:hover { background: #084db2; }
+      button { margin-top: 20px; width: 100%; padding: 12px; background: #198754; color: #fff; border: 0; border-radius: 8px; font-size: 1rem; cursor: pointer; }
+      button:hover { background: #146c43; }
       .alert { padding: 10px 12px; border-radius: 8px; margin-top: 12px; }
       .ok { background: #d1f7de; color: #0b5a2a; }
       .err { background: #ffd9d9; color: #8f1a1a; }
       .small { font-size: .9rem; color: #666; margin-top: 14px; }
       .hint { margin-top: 8px; font-size: .9rem; color: #555; }
       .dia-semana { margin-top: 8px; font-size: .95rem; color: #0b5ed7; font-weight: 600; }
+      @media (max-width: 600px) {
+        .logo { max-width: 160px; }
+      }
     </style>
   </head>
   <body>
     <main class="container">
+      <img class="logo" src="/static/logo-ifc.svg" alt="Instituto Federal Catarinense" />
       <h1>Intenção de Almoço - IFC SBS</h1>
       <p>Preencha para informar em quais dias da semana você vai almoçar.</p>
 

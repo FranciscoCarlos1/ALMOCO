@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="140" height="190" viewBox="0 0 140 190" role="img" aria-label="Símbolo Instituto Federal">
+  <circle cx="24" cy="24" r="22" fill="#e30613" />
+
+  <rect x="52" y="2" width="44" height="44" rx="4" fill="#009c2f" />
+  <rect x="100" y="2" width="38" height="44" rx="4" fill="#009c2f" />
+
+  <rect x="2" y="50" width="44" height="44" rx="4" fill="#009c2f" />
+  <rect x="52" y="50" width="44" height="44" rx="4" fill="#009c2f" />
+
+  <rect x="2" y="98" width="44" height="44" rx="4" fill="#009c2f" />
+  <rect x="52" y="98" width="44" height="44" rx="4" fill="#009c2f" />
+  <rect x="100" y="98" width="38" height="44" rx="4" fill="#009c2f" />
+
+  <rect x="2" y="146" width="44" height="44" rx="4" fill="#009c2f" />
+  <rect x="52" y="146" width="44" height="44" rx="4" fill="#009c2f" />
+</svg>

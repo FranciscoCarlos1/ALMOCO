@@ -1,7 +1,7 @@
 services:
   - type: web
     name: almoco-ifc-sbs
-    env: python
+    runtime: python
     plan: free
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn app:app

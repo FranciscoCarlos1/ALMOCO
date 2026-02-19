@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Painel - Intenção de Almoço</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 0; background: #f4f6f8; }
+      .container { max-width: 1080px; margin: 24px auto; background: #fff; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,.08); }
+      h1 { margin-top: 0; }
+      .totais { display: flex; gap: 14px; flex-wrap: wrap; margin: 14px 0 20px; }
+      .card { background: #eef3ff; border: 1px solid #d7e2ff; border-radius: 8px; padding: 10px 14px; min-width: 160px; }
+      table { width: 100%; border-collapse: collapse; margin-top: 14px; }
+      th, td { border: 1px solid #dce1e7; padding: 8px; text-align: left; }
+      th { background: #f0f3f7; }
+      .filtro { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+      input, button, a.btn { padding: 8px 10px; border-radius: 8px; border: 1px solid #cfd6dd; text-decoration: none; color: #111; }
+      button, a.btn.primary { background: #0b5ed7; border-color: #0b5ed7; color: #fff; cursor: pointer; }
+      .split { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+      .alert { padding: 10px 12px; border-radius: 8px; margin-top: 12px; }
+      .ok { background: #d1f7de; color: #0b5a2a; }
+      .err { background: #ffd9d9; color: #8f1a1a; }
+      @media (max-width: 900px) { .split { grid-template-columns: 1fr; } }
+    </style>
+  </head>
+  <body>
+    <main class="container">
+      <h1>Painel de Intenção de Almoço</h1>
+
+      {% if importado %}
+      <div class="alert ok">Lista de alunos importada com sucesso.</div>
+      {% endif %}
+
+      {% if import_error %}
+      <div class="alert err">{{ import_error }}</div>
+      {% endif %}
+
+      <form class="filtro" method="get" action="/admin">
+        <input type="hidden" name="token" value="{{ token }}" />
+        <label for="data">Data:</label>
+        <input type="date" id="data" name="data" value="{{ data_filtro }}" />
+        <button type="submit">Atualizar</button>
+        <a class="btn primary" href="/export.csv?data={{ data_filtro }}&token={{ token }}">Exportar CSV</a>
+        <a class="btn primary" href="/admin/planilha?token={{ token }}&turma=TIN I&semana={{ data_filtro }}">Planilha semanal (ODS)</a>
+      </form>
+
+      <form class="filtro" method="post" action="/admin/importar_alunos" enctype="multipart/form-data">
+        <input type="hidden" name="token" value="{{ token }}" />
+        <input type="hidden" name="data" value="{{ data_filtro }}" />
+        <label for="arquivo_csv">Importar alunos (CSV: nome,matricula,turma):</label>
+        <input type="file" id="arquivo_csv" name="arquivo_csv" accept=".csv" required />
+        <button type="submit">Importar CSV</button>
+      </form>
+
+      <section class="totais">
+        <div class="card"><strong>SIM:</strong> {{ total_sim }}</div>
+        <div class="card"><strong>NÃO:</strong> {{ total_nao }}</div>
+        <div class="card"><strong>TOTAL (SIM):</strong> {{ total_geral }}</div>
+      </section>
+
+      <h2>SIM por dia da semana</h2>
+      <div class="totais">
+        <div class="card"><strong>Seg:</strong> {{ semana_sim.seg }}</div>
+        <div class="card"><strong>Ter:</strong> {{ semana_sim.ter }}</div>
+        <div class="card"><strong>Qua:</strong> {{ semana_sim.qua }}</div>
+        <div class="card"><strong>Qui:</strong> {{ semana_sim.qui }}</div>
+        <div class="card"><strong>Sex:</strong> {{ semana_sim.sex }}</div>
+      </div>
+      <div>Semana considerada: {{ semana_inicio }} até {{ semana_fim }}</div>
+
+      <div class="split">
+        <section>
+          <h2>Resumo por turma</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Turma</th>
+                <th>Sim</th>
+                <th>Não</th>
+                <th>Total (SIM)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for turma, item in resumo.items() %}
+              <tr>
+                <td>{{ turma }}</td>
+                <td>{{ item.sim }}</td>
+                <td>{{ item.nao }}</td>
+                <td>{{ item.total }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </section>
+
+        <section>
+          <h2>Respostas do dia</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Nome</th>
+                <th>Turma</th>
+                <th>Intenção</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in respostas %}
+              <tr>
+                <td>{{ row.nome }}</td>
+                <td>{{ row.turma }}</td>
+                <td>{{ row.intencao }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </section>
+      </div>
+    </main>
+  </body>
+</html>

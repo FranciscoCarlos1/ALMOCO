@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: almoco-ifc-sbs
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
+    envVars:
+      - key: ALMOCO_ADMIN_TOKEN
+        generateValue: true
+      - key: ALMOCO_DATA_DIR
+        value: /var/data
+    disk:
+      name: almoco-data
+      mountPath: /var/data
+      sizeGB: 1

@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Planilha Semanal - Intenção de Almoço</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 0; background: #f4f6f8; }
+      .container { max-width: 1100px; margin: 24px auto; background: #fff; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,.08); }
+      .topbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+      input, select, button, a.btn { padding: 8px 10px; border-radius: 8px; border: 1px solid #cfd6dd; text-decoration: none; color: #111; }
+      button, a.btn.primary { background: #0b5ed7; border-color: #0b5ed7; color: #fff; cursor: pointer; }
+      table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+      th, td { border: 1px solid #000; padding: 8px; text-align: center; }
+      th.nome, td.nome { text-align: left; }
+      th { background: #eee; }
+      .meta { margin-top: 10px; color: #444; }
+    </style>
+  </head>
+  <body>
+    <main class="container">
+      <h1>Intenção de Almoço - Planilha Semanal</h1>
+
+      <form class="topbar" method="get" action="/admin/planilha">
+        <input type="hidden" name="token" value="{{ token }}" />
+        <label for="turma">Turma:</label>
+        <select id="turma" name="turma">
+          {% for t in turmas %}
+          <option value="{{ t }}" {% if t == turma %}selected{% endif %}>{{ t }}</option>
+          {% endfor %}
+        </select>
+
+        <label for="semana">Data de referência:</label>
+        <input type="date" id="semana" name="semana" value="{{ semana_ref }}" />
+
+        <button type="submit">Atualizar</button>
+        <a class="btn primary" href="/export_semana.csv?token={{ token }}&turma={{ turma }}&semana={{ semana_ref }}">Exportar CSV (ODS)</a>
+        <a class="btn" href="/admin?token={{ token }}&data={{ semana_ref }}">Voltar ao painel</a>
+      </form>
+
+      <div class="meta">Turma: <strong>{{ turma }}</strong> | Semana: <strong>{{ monday }}</strong> até <strong>{{ friday }}</strong></div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>N</th>
+            <th class="nome">Nome</th>
+            <th>Seg</th>
+            <th>Ter</th>
+            <th>Qua</th>
+            <th>Qui</th>
+            <th>Sex</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in linhas %}
+          <tr>
+            <td>{{ row.ordem }}</td>
+            <td class="nome">{{ row.nome }}</td>
+            <td>{{ row.seg }}</td>
+            <td>{{ row.ter }}</td>
+            <td>{{ row.qua }}</td>
+            <td>{{ row.qui }}</td>
+            <td>{{ row.sex }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </main>
+  </body>
+</html>

@@ -20,9 +20,11 @@
       .filtro { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
       input, button, a.btn { padding: 8px 10px; border-radius: 8px; border: 1px solid #cfd6dd; text-decoration: none; color: #111; }
       button, a.btn.primary { background: #0b5ed7; border-color: #0b5ed7; color: #fff; cursor: pointer; }
+      .split { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
       .alert { padding: 10px 12px; border-radius: 8px; margin-top: 12px; }
       .ok { background: #d1f7de; color: #0b5a2a; }
       .err { background: #ffd9d9; color: #8f1a1a; }
+      @media (max-width: 900px) { .split { grid-template-columns: 1fr; } }
     </style>
   </head>
   <body>
@@ -102,6 +104,29 @@
             </tfoot>
           </table>
 
+      <div class="split">
+        <section>
+          <h2>Respostas do dia</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Nome</th>
+                <th>Turma</th>
+                <th>Intenção</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in respostas %}
+              <tr>
+                <td>{{ row.nome }}</td>
+                <td>{{ row.turma }}</td>
+                <td>{{ row.intencao }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </section>
+      </div>
     </main>
   </body>
 </html>

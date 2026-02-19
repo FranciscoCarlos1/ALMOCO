@@ -14,7 +14,9 @@
       th, td { border: 1px solid #dce1e7; padding: 8px; text-align: left; }
       th { background: #f0f3f7; }
       .center { text-align: center; }
-      .total-row th, .total-row td { background: #fff59d; font-weight: 700; }
+      .quadro th, .quadro td { border: 1px solid #5f5f5f; }
+      .quadro thead th { background: #e8e8e8; }
+      .total-row th, .total-row td { background: #fff200; font-weight: 700; }
       .filtro { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
       input, button, a.btn { padding: 8px 10px; border-radius: 8px; border: 1px solid #cfd6dd; text-decoration: none; color: #111; }
       button, a.btn.primary { background: #0b5ed7; border-color: #0b5ed7; color: #fff; cursor: pointer; }
@@ -60,47 +62,38 @@
         <div class="card"><strong>TOTAL (SIM):</strong> {{ total_geral }}</div>
       </section>
 
-      <h2>SIM por dia da semana</h2>
-      <div class="totais">
-        <div class="card"><strong>Seg:</strong> {{ semana_sim.seg }}</div>
-        <div class="card"><strong>Ter:</strong> {{ semana_sim.ter }}</div>
-        <div class="card"><strong>Qua:</strong> {{ semana_sim.qua }}</div>
-        <div class="card"><strong>Qui:</strong> {{ semana_sim.qui }}</div>
-        <div class="card"><strong>Sex:</strong> {{ semana_sim.sex }}</div>
-      </div>
+      <h2>Quadro semanal por turma (SIM)</h2>
       <div>Semana considerada: {{ semana_inicio }} até {{ semana_fim }}</div>
-
-      <div class="split">
-        <section>
-          <h2>Resumo semanal por turma (SIM)</h2>
-          <table>
+      <table class="quadro">
             <thead>
               <tr>
+                <th class="center" style="width:50px">#</th>
                 <th>Turma</th>
                 <th class="center">Seg</th>
                 <th class="center">Ter</th>
                 <th class="center">Qua</th>
                 <th class="center">Qui</th>
                 <th class="center">Sex</th>
-                <th class="center">Total</th>
+                <th class="center" style="width:90px">Total</th>
               </tr>
             </thead>
             <tbody>
-              {% for turma, item in turma_semana.items() %}
+              {% for row in quadro_rows %}
               <tr>
-                <td>{{ turma }}</td>
-                <td class="center">{{ item.seg }}</td>
-                <td class="center">{{ item.ter }}</td>
-                <td class="center">{{ item.qua }}</td>
-                <td class="center">{{ item.qui }}</td>
-                <td class="center">{{ item.sex }}</td>
-                <td class="center"><strong>{{ item.total }}</strong></td>
+                <td class="center">{{ row.ordem }}</td>
+                <td>{{ row.turma_nome }}</td>
+                <td class="center">{{ row.seg }}</td>
+                <td class="center">{{ row.ter }}</td>
+                <td class="center">{{ row.qua }}</td>
+                <td class="center">{{ row.qui }}</td>
+                <td class="center">{{ row.sex }}</td>
+                <td class="center"><strong>{{ row.total }}</strong></td>
               </tr>
               {% endfor %}
             </tbody>
             <tfoot>
               <tr class="total-row">
-                <th>Total</th>
+                <th class="center" colspan="2">Total</th>
                 <th class="center">{{ semana_sim.seg }}</th>
                 <th class="center">{{ semana_sim.ter }}</th>
                 <th class="center">{{ semana_sim.qua }}</th>
@@ -110,8 +103,8 @@
               </tr>
             </tfoot>
           </table>
-        </section>
 
+      <div class="split">
         <section>
           <h2>Respostas do dia</h2>
           <table>

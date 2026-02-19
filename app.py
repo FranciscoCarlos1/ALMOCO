@@ -27,6 +27,20 @@ TURMAS = [
     "TST III",
 ]
 
+TURMAS_LABEL = {
+    "TAI I": "TÉCNICO EM AUTOMAÇÃO INDUSTRIAL – 1",
+    "TAI II": "TÉCNICO EM AUTOMAÇÃO INDUSTRIAL – 2",
+    "TAI III": "TÉCNICO EM AUTOMAÇÃO INDUSTRIAL – 3",
+    "TIN I": "TÉCNICO EM INFORMÁTICA – 1",
+    "TIN II": "TÉCNICO EM INFORMÁTICA – 2",
+    "TIN III": "TÉCNICO EM INFORMÁTICA – 3",
+    "TST I": "TÉCNICO EM SEGURANÇA DO TRABALHO – 1",
+    "TST II": "TÉCNICO EM SEGURANÇA DO TRABALHO – 2",
+    "TST III": "TÉCNICO EM SEGURANÇA DO TRABALHO – 3",
+}
+
+TURMAS_ORDEM_QUADRO = ["TAI I", "TAI II", "TAI III", "TIN I", "TIN II", "TIN III", "TST I", "TST II", "TST III"]
+
 INTENCOES = ["SIM", "NAO"]
 DIAS_SEMANA = ["seg", "ter", "qua", "qui", "sex"]
 
@@ -322,6 +336,35 @@ def admin() -> str:
 
     total_semana_geral = sum(semana_sim.values())
 
+    quadro_rows = []
+    for idx, turma in enumerate(TURMAS_ORDEM_QUADRO, start=1):
+        item = turma_semana.get(turma, {"seg": 0, "ter": 0, "qua": 0, "qui": 0, "sex": 0, "total": 0})
+        quadro_rows.append(
+            {
+                "ordem": idx,
+                "turma_nome": TURMAS_LABEL.get(turma, turma),
+                "seg": item["seg"],
+                "ter": item["ter"],
+                "qua": item["qua"],
+                "qui": item["qui"],
+                "sex": item["sex"],
+                "total": item["total"],
+            }
+        )
+
+    quadro_rows.append(
+        {
+            "ordem": len(quadro_rows) + 1,
+            "turma_nome": "SERVIDORES",
+            "seg": 0,
+            "ter": 0,
+            "qua": 0,
+            "qui": 0,
+            "sex": 0,
+            "total": 0,
+        }
+    )
+
     return render_template(
         "admin.html",
         resumo=resumo,
@@ -336,6 +379,7 @@ def admin() -> str:
         semana_sim=semana_sim,
         turma_semana=turma_semana,
         total_semana_geral=total_semana_geral,
+        quadro_rows=quadro_rows,
         semana_inicio=segunda.isoformat(),
         semana_fim=sexta.isoformat(),
     )

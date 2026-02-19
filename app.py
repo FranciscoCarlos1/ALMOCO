@@ -288,16 +288,6 @@ def admin() -> str:
             (segunda.isoformat(), sexta.isoformat()),
         ).fetchall()
 
-        respostas = conn.execute(
-            """
-            SELECT nome, matricula, turma, intencao, criado_em
-            FROM respostas
-            WHERE data_almoco = ?
-            ORDER BY turma, nome
-            """,
-            (data_filtro,),
-        ).fetchall()
-
     resumo = {turma: {"sim": 0, "nao": 0, "total": 0} for turma in TURMAS}
     for row in resumo_rows:
         resumo[row["turma"]] = {
@@ -372,7 +362,6 @@ def admin() -> str:
         total_sim=total_sim,
         total_nao=total_nao,
         total_geral=total_geral,
-        respostas=respostas,
         token=request.args.get("token", ""),
         importado=request.args.get("importado") == "1",
         import_error=request.args.get("import_error"),

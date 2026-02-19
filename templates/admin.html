@@ -13,6 +13,8 @@
       table { width: 100%; border-collapse: collapse; margin-top: 14px; }
       th, td { border: 1px solid #dce1e7; padding: 8px; text-align: left; }
       th { background: #f0f3f7; }
+      .center { text-align: center; }
+      .total-row th, .total-row td { background: #fff59d; font-weight: 700; }
       .filtro { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
       input, button, a.btn { padding: 8px 10px; border-radius: 8px; border: 1px solid #cfd6dd; text-decoration: none; color: #111; }
       button, a.btn.primary { background: #0b5ed7; border-color: #0b5ed7; color: #fff; cursor: pointer; }
@@ -70,26 +72,43 @@
 
       <div class="split">
         <section>
-          <h2>Resumo por turma</h2>
+          <h2>Resumo semanal por turma (SIM)</h2>
           <table>
             <thead>
               <tr>
                 <th>Turma</th>
-                <th>Sim</th>
-                <th>Não</th>
-                <th>Total (SIM)</th>
+                <th class="center">Seg</th>
+                <th class="center">Ter</th>
+                <th class="center">Qua</th>
+                <th class="center">Qui</th>
+                <th class="center">Sex</th>
+                <th class="center">Total</th>
               </tr>
             </thead>
             <tbody>
-              {% for turma, item in resumo.items() %}
+              {% for turma, item in turma_semana.items() %}
               <tr>
                 <td>{{ turma }}</td>
-                <td>{{ item.sim }}</td>
-                <td>{{ item.nao }}</td>
-                <td>{{ item.total }}</td>
+                <td class="center">{{ item.seg }}</td>
+                <td class="center">{{ item.ter }}</td>
+                <td class="center">{{ item.qua }}</td>
+                <td class="center">{{ item.qui }}</td>
+                <td class="center">{{ item.sex }}</td>
+                <td class="center"><strong>{{ item.total }}</strong></td>
               </tr>
               {% endfor %}
             </tbody>
+            <tfoot>
+              <tr class="total-row">
+                <th>Total</th>
+                <th class="center">{{ semana_sim.seg }}</th>
+                <th class="center">{{ semana_sim.ter }}</th>
+                <th class="center">{{ semana_sim.qua }}</th>
+                <th class="center">{{ semana_sim.qui }}</th>
+                <th class="center">{{ semana_sim.sex }}</th>
+                <th class="center">{{ total_semana_geral }}</th>
+              </tr>
+            </tfoot>
           </table>
         </section>
 

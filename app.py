@@ -249,6 +249,19 @@ def admin() -> str:
             (data_filtro,),
         ).fetchall()
 
+        turma_semana_rows = conn.execute(
+            """
+            SELECT turma,
+                   data_almoco,
+                   SUM(CASE WHEN intencao = 'SIM' THEN 1 ELSE 0 END) AS sim
+            FROM respostas
+            WHERE data_almoco BETWEEN ? AND ?
+            GROUP BY turma, data_almoco
+            ORDER BY turma, data_almoco
+            """,
+            (segunda.isoformat(), sexta.isoformat()),
+        ).fetchall()
+
         semana_rows = conn.execute(
             """
             SELECT data_almoco,
@@ -291,10 +304,23 @@ def admin() -> str:
         (segunda + timedelta(days=3)).isoformat(): "qui",
         (segunda + timedelta(days=4)).isoformat(): "sex",
     }
+
+    turma_semana = {turma: {"seg": 0, "ter": 0, "qua": 0, "qui": 0, "sex": 0, "total": 0} for turma in TURMAS}
+    for row in turma_semana_rows:
+        turma = row["turma"]
+        dia = week_map.get(row["data_almoco"])
+        if turma not in turma_semana or not dia:
+            continue
+        valor = row["sim"] or 0
+        turma_semana[turma][dia] = valor
+        turma_semana[turma]["total"] += valor
+
     for row in semana_rows:
         key = week_map.get(row["data_almoco"])
         if key:
             semana_sim[key] = row["sim"] or 0
+
+    total_semana_geral = sum(semana_sim.values())
 
     return render_template(
         "admin.html",
@@ -308,6 +334,8 @@ def admin() -> str:
         importado=request.args.get("importado") == "1",
         import_error=request.args.get("import_error"),
         semana_sim=semana_sim,
+        turma_semana=turma_semana,
+        total_semana_geral=total_semana_geral,
         semana_inicio=segunda.isoformat(),
         semana_fim=sexta.isoformat(),
     )

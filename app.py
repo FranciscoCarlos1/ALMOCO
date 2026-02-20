@@ -379,14 +379,14 @@ def admin() -> str:
             (data_filtro,),
         ).fetchall()
 
-        respostas = conn.execute(
+        respostas_semana_rows = conn.execute(
             """
-            SELECT nome, matricula, turma, intencao, criado_em
+            SELECT nome, matricula, turma, data_almoco, intencao
             FROM respostas
-            WHERE data_almoco = ?
-            ORDER BY turma, nome
+            WHERE data_almoco BETWEEN ? AND ?
+            ORDER BY turma, nome, data_almoco
             """,
-            (data_filtro,),
+            (segunda.isoformat(), sexta.isoformat()),
         ).fetchall()
 
         relatorio_periodo_rows = conn.execute(
@@ -444,6 +444,41 @@ def admin() -> str:
     total_sim = sum(item["sim"] for item in resumo.values())
     total_nao = sum(item["nao"] for item in resumo.values())
     total_geral = total_sim
+
+    respostas_por_pessoa: dict[str, dict[str, str | dict[str, bool]]] = {}
+    week_map_respostas = {
+        segunda.isoformat(): "seg",
+        (segunda + timedelta(days=1)).isoformat(): "ter",
+        (segunda + timedelta(days=2)).isoformat(): "qua",
+        (segunda + timedelta(days=3)).isoformat(): "qui",
+        (segunda + timedelta(days=4)).isoformat(): "sex",
+    }
+
+    for row in respostas_semana_rows:
+        matricula = row["matricula"]
+        if matricula not in respostas_por_pessoa:
+            respostas_por_pessoa[matricula] = {
+                "nome": row["nome"],
+                "turma": row["turma"],
+                "dias": {"seg": False, "ter": False, "qua": False, "qui": False, "sex": False},
+            }
+
+        dia = week_map_respostas.get(row["data_almoco"])
+        if dia and row["intencao"] == "SIM":
+            respostas_por_pessoa[matricula]["dias"][dia] = True
+
+    dias_label = {"seg": "Seg", "ter": "Ter", "qua": "Qua", "qui": "Qui", "sex": "Sex"}
+    respostas = []
+    for item in sorted(respostas_por_pessoa.values(), key=lambda x: (x["turma"], x["nome"])):
+        dias = item["dias"]
+        checks = [f"{dias_label[dia]} ✅" for dia in DIAS_SEMANA if dias[dia]]
+        respostas.append(
+            {
+                "nome": item["nome"],
+                "turma": item["turma"],
+                "intencao": " | ".join(checks) if checks else "Sem check na semana",
+            }
+        )
 
     relatorio_periodo = []
     total_periodo_sim = 0

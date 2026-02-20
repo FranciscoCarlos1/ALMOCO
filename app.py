@@ -110,24 +110,7 @@ def write_backup_xlsx() -> None:
 
 
 def prune_old_backups(max_backups: int) -> None:
-    if max_backups <= 0:
-        return
-
-    backup_dir = DB_DIR / "backups"
-    if not backup_dir.exists():
-        return
-
-    files = sorted(
-        backup_dir.glob("almoco_backup_*.xlsx"),
-        key=lambda item: item.stat().st_mtime,
-        reverse=True,
-    )
-
-    for old_file in files[max_backups:]:
-        try:
-            old_file.unlink(missing_ok=True)
-        except OSError:
-            pass
+    return
 
 
 def get_conn() -> sqlite3.Connection:
@@ -667,6 +650,8 @@ def admin() -> str:
         backup_restaurado=request.args.get("backup_restaurado") == "1",
         backup_restore_error=request.args.get("backup_restore_error"),
         backup_restore_file=request.args.get("backup_restore_file", ""),
+        backup_manual=request.args.get("backup_manual") == "1",
+        backup_manual_error=request.args.get("backup_manual_error"),
         semana_sim=semana_sim,
         total_semana_geral=total_semana_geral,
         quadro_rows=quadro_rows,
@@ -1032,6 +1017,40 @@ def restaurar_backup_quadro():
             data=segunda.isoformat(),
             backup_restaurado=1,
             backup_restore_file=selected_backup.name,
+        )
+    )
+
+
+@app.post("/admin/backup_manual")
+def backup_manual_admin():
+    if not is_admin_allowed_form():
+        abort(403, "Acesso negado. Informe um token válido.")
+
+    token = request.form.get("token", "")
+    data_filtro = request.form.get("data", "")
+    try:
+        data_base = parse_iso_date(data_filtro) if data_filtro else date.today()
+    except ValueError:
+        data_base = date.today()
+
+    try:
+        write_backup_xlsx()
+    except Exception:
+        return redirect(
+            url_for(
+                "admin",
+                token=token,
+                data=data_base.isoformat(),
+                backup_manual_error="Não foi possível gerar o backup manual agora.",
+            )
+        )
+
+    return redirect(
+        url_for(
+            "admin",
+            token=token,
+            data=data_base.isoformat(),
+            backup_manual=1,
         )
     )
 

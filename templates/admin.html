@@ -57,6 +57,14 @@
       <div class="alert err">{{ backup_restore_error }}</div>
       {% endif %}
 
+      {% if backup_manual %}
+      <div class="alert ok">Backup manual gerado com sucesso.</div>
+      {% endif %}
+
+      {% if backup_manual_error %}
+      <div class="alert err">{{ backup_manual_error }}</div>
+      {% endif %}
+
       <form class="filtro" method="get" action="/admin">
         <input type="hidden" name="token" value="{{ token }}" />
         <label for="data">Data:</label>
@@ -98,6 +106,13 @@
         <input type="hidden" name="data" value="{{ data_filtro }}" />
         <span>Recuperação rápida:</span>
         <button type="submit">Restaurar quadro do último backup</button>
+      </form>
+
+      <form class="filtro" method="post" action="/admin/backup_manual">
+        <input type="hidden" name="token" value="{{ token }}" />
+        <input type="hidden" name="data" value="{{ data_filtro }}" />
+        <span>Segurança:</span>
+        <button type="submit">Gerar backup manual agora</button>
       </form>
 
       <section class="totais">

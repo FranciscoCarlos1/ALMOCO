@@ -10,6 +10,10 @@ from pathlib import Path
 
 from openpyxl import Workbook, load_workbook
 from flask import Flask, Response, abort, jsonify, redirect, render_template, request, url_for
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4, landscape
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR_ENV = os.getenv("ALMOCO_DATA_DIR")
@@ -1314,6 +1318,77 @@ def export_quadro_xlsx() -> Response:
         buffer.getvalue(),
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f"attachment; filename=quadro_semanal_{segunda.isoformat()}_{sexta.isoformat()}.xlsx"},
+    )
+
+
+@app.get("/export_quadro.pdf")
+def export_quadro_pdf() -> Response:
+    if not is_admin_allowed():
+        abort(403, "Acesso negado. Informe um token válido na URL.")
+
+    data_filtro = request.args.get("data") or date.today().isoformat()
+    try:
+        data_base = parse_iso_date(data_filtro)
+    except ValueError:
+        data_base = date.today()
+
+    segunda = week_start(data_base)
+    sexta = segunda + timedelta(days=4)
+
+    with get_conn() as conn:
+        semana_sim, quadro_rows, total_semana_geral = build_quadro_semana(conn, segunda, sexta)
+
+    pdf_buffer = BytesIO()
+    document = SimpleDocTemplate(pdf_buffer, pagesize=landscape(A4), leftMargin=24, rightMargin=24, topMargin=24, bottomMargin=24)
+    styles = getSampleStyleSheet()
+
+    story = [
+        Paragraph("Quadro semanal por turma (SIM)", styles["Title"]),
+        Spacer(1, 8),
+        Paragraph(f"Semana: {segunda.isoformat()} até {sexta.isoformat()}", styles["Normal"]),
+        Spacer(1, 12),
+    ]
+
+    table_data = [["#", "Turma", "Seg", "Ter", "Qua", "Qui", "Sex", "Total"]]
+    for row in quadro_rows:
+        table_data.append([
+            row["ordem"],
+            row["turma_nome"],
+            row["seg"],
+            row["ter"],
+            row["qua"],
+            row["qui"],
+            row["sex"],
+            row["total"],
+        ])
+
+    table_data.append(["", "Total", semana_sim["seg"], semana_sim["ter"], semana_sim["qua"], semana_sim["qui"], semana_sim["sex"], total_semana_geral])
+
+    table = Table(table_data, colWidths=[28, 310, 55, 55, 55, 55, 55, 70])
+    table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#E8E8E8")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.black),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
+                ("BACKGROUND", (0, -1), (-1, -1), colors.HexColor("#FFF200")),
+                ("ALIGN", (0, 0), (0, -1), "CENTER"),
+                ("ALIGN", (2, 0), (-1, -1), "CENTER"),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("GRID", (0, 0), (-1, -1), 0.8, colors.HexColor("#5F5F5F")),
+            ]
+        )
+    )
+
+    story.append(table)
+    document.build(story)
+    pdf_buffer.seek(0)
+
+    return Response(
+        pdf_buffer.getvalue(),
+        mimetype="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=quadro_semanal_{segunda.isoformat()}_{sexta.isoformat()}.pdf"},
     )
 
 

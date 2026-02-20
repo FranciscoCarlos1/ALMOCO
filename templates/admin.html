@@ -61,6 +61,7 @@
         <input type="hidden" name="token" value="{{ token }}" />
         <input type="hidden" name="data" value="{{ data_filtro }}" />
         <label for="arquivo_csv">Importar alunos (CSV/XLSX: nome,matricula,turma):</label>
+        <span>Modelo de cabeçalho: <strong>nome,matricula,turma</strong></span>
         <input type="file" id="arquivo_csv" name="arquivo_csv" accept=".csv,.xlsx" required />
         <button type="submit">Importar arquivo</button>
       </form>

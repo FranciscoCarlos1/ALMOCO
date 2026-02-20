@@ -1298,6 +1298,13 @@ def export_quadro_xlsx() -> Response:
 
     sheet.append(["", "Total", semana_sim["seg"], semana_sim["ter"], semana_sim["qua"], semana_sim["qui"], semana_sim["sex"], total_semana_geral])
 
+    meta = workbook.create_sheet("metadados")
+    meta.append(["campo", "valor"])
+    meta.append(["periodo_inicio", segunda.isoformat()])
+    meta.append(["periodo_fim", sexta.isoformat()])
+    meta.append(["data_referencia", data_filtro])
+    meta.append(["gerado_em", datetime.now().isoformat(timespec="seconds")])
+
     buffer = BytesIO()
     workbook.save(buffer)
     buffer.seek(0)

@@ -180,7 +180,8 @@ def build_quadro_semana(conn: sqlite3.Connection, segunda: date, sexta: date) ->
         dia = week_map.get(row["data_almoco"])
         if turma not in turma_semana or not dia:
             continue
-        turma_semana[turma][dia] = max(0, int(row["sim"] or 0))
+        importado = max(0, int(row["sim"] or 0))
+        turma_semana[turma][dia] = max(turma_semana[turma][dia], importado)
 
     for turma in TURMAS:
         item = turma_semana[turma]

@@ -850,6 +850,7 @@ def importar_quadro_semanal():
 
         turma = map_turma_value(turma_raw)
         if not turma:
+            
             continue
 
         linha = {

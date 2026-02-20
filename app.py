@@ -439,10 +439,13 @@ def enviar():
     if any(item not in DIAS_SEMANA for item in dias_marcados):
         return redirect(url_for("index", erro="Seleção de dias inválida."))
 
-    try:
-        data_ref = parse_iso_date(data_referencia)
-    except ValueError:
-        return redirect(url_for("index", erro="Informe uma data válida."))
+    if data_referencia:
+        try:
+            data_ref = parse_iso_date(data_referencia)
+        except ValueError:
+            return redirect(url_for("index", erro="Informe uma data válida."))
+    else:
+        data_ref = date.today()
 
     segunda = week_start(data_ref)
     datas_semana = {

@@ -81,6 +81,15 @@ python app.py
 
 Sem `DATABASE_URL`, o sistema continua usando SQLite (`data/almoco.db`).
 
+#### Migrar dados atuais (SQLite -> PostgreSQL)
+
+```powershell
+$env:DATABASE_URL="postgresql://USUARIO:SENHA@HOST:5432/NOME_DO_BANCO?sslmode=require"
+python scripts/migrate_sqlite_to_postgres.py
+```
+
+Script utilizado: `scripts/migrate_sqlite_to_postgres.py`
+
 ## 6) Publicar no Render
 Este projeto já está preparado com `render.yaml`.
 

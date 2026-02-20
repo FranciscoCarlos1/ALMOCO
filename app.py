@@ -5,7 +5,7 @@ import os
 import re
 import sqlite3
 from datetime import date, datetime, timedelta
-from io import StringIO
+from io import BytesIO, StringIO
 from pathlib import Path
 
 from openpyxl import Workbook, load_workbook
@@ -1258,6 +1258,55 @@ def export_quadro_csv() -> Response:
         csv_data,
         mimetype="text/csv",
         headers={"Content-Disposition": f"attachment; filename=quadro_semanal_{segunda.isoformat()}_{sexta.isoformat()}.csv"},
+    )
+
+
+@app.get("/export_quadro.xlsx")
+def export_quadro_xlsx() -> Response:
+    if not is_admin_allowed():
+        abort(403, "Acesso negado. Informe um token válido na URL.")
+
+    data_filtro = request.args.get("data") or date.today().isoformat()
+    try:
+        data_base = parse_iso_date(data_filtro)
+    except ValueError:
+        data_base = date.today()
+
+    segunda = week_start(data_base)
+    sexta = segunda + timedelta(days=4)
+
+    with get_conn() as conn:
+        semana_sim, quadro_rows, total_semana_geral = build_quadro_semana(conn, segunda, sexta)
+
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "quadro_semanal"
+    sheet.append(["#", "Turma", "Seg", "Ter", "Qua", "Qui", "Sex", "Total"])
+
+    for row in quadro_rows:
+        sheet.append(
+            [
+                row["ordem"],
+                row["turma_nome"],
+                row["seg"],
+                row["ter"],
+                row["qua"],
+                row["qui"],
+                row["sex"],
+                row["total"],
+            ]
+        )
+
+    sheet.append(["", "Total", semana_sim["seg"], semana_sim["ter"], semana_sim["qua"], semana_sim["qui"], semana_sim["sex"], total_semana_geral])
+
+    buffer = BytesIO()
+    workbook.save(buffer)
+    buffer.seek(0)
+
+    return Response(
+        buffer.getvalue(),
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename=quadro_semanal_{segunda.isoformat()}_{sexta.isoformat()}.xlsx"},
     )
 
 

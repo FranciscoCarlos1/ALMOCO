@@ -93,6 +93,32 @@ def week_start(given_date: date) -> date:
     return given_date - timedelta(days=given_date.weekday())
 
 
+def month_bounds(given_date: date) -> tuple[date, date]:
+    inicio = given_date.replace(day=1)
+    if given_date.month == 12:
+        proximo = date(given_date.year + 1, 1, 1)
+    else:
+        proximo = date(given_date.year, given_date.month + 1, 1)
+    fim = proximo - timedelta(days=1)
+    return inicio, fim
+
+
+def year_bounds(given_date: date) -> tuple[date, date]:
+    return date(given_date.year, 1, 1), date(given_date.year, 12, 31)
+
+
+def period_bounds(given_date: date, periodo: str) -> tuple[date, date, str]:
+    if periodo == "mes":
+        inicio, fim = month_bounds(given_date)
+        return inicio, fim, "Mês"
+    if periodo == "ano":
+        inicio, fim = year_bounds(given_date)
+        return inicio, fim, "Ano"
+    segunda = week_start(given_date)
+    sexta = segunda + timedelta(days=4)
+    return segunda, sexta, "Semana"
+
+
 def normalize_header(header: str) -> str:
     return (
         header.strip()
@@ -215,6 +241,19 @@ def enviar():
     }
 
     with get_conn() as conn:
+        conn.execute(
+            """
+            INSERT INTO alunos (matricula, nome, turma)
+            VALUES (?, ?, ?)
+            ON CONFLICT(matricula)
+            DO UPDATE SET
+                nome = excluded.nome,
+                turma = excluded.turma,
+                atualizado_em = CURRENT_TIMESTAMP
+            """,
+            (matricula, nome, turma),
+        )
+
         for dia, data_almoco in datas_semana.items():
             intencao = "SIM" if dia in dias_marcados else "NAO"
             conn.execute(
@@ -249,6 +288,11 @@ def admin() -> str:
 
     segunda = week_start(data_base)
     sexta = segunda + timedelta(days=4)
+    periodo = request.args.get("periodo", "semana").strip().lower()
+    if periodo not in {"semana", "mes", "ano"}:
+        periodo = "semana"
+
+    periodo_inicio, periodo_fim, periodo_label = period_bounds(data_base, periodo)
 
     with get_conn() as conn:
         resumo_rows = conn.execute(
@@ -300,6 +344,48 @@ def admin() -> str:
             (data_filtro,),
         ).fetchall()
 
+        relatorio_periodo_rows = conn.execute(
+            """
+            SELECT data_almoco,
+                   SUM(CASE WHEN intencao = 'SIM' THEN 1 ELSE 0 END) AS sim,
+                   SUM(CASE WHEN intencao = 'NAO' THEN 1 ELSE 0 END) AS nao
+            FROM respostas
+            WHERE data_almoco BETWEEN ? AND ?
+            GROUP BY data_almoco
+            ORDER BY data_almoco
+            """,
+            (periodo_inicio.isoformat(), periodo_fim.isoformat()),
+        ).fetchall()
+
+        total_semana_periodo = conn.execute(
+            """
+            SELECT COALESCE(SUM(CASE WHEN intencao = 'SIM' THEN 1 ELSE 0 END), 0) AS total
+            FROM respostas
+            WHERE data_almoco BETWEEN ? AND ?
+            """,
+            (segunda.isoformat(), sexta.isoformat()),
+        ).fetchone()["total"]
+
+        mes_inicio, mes_fim = month_bounds(data_base)
+        total_mes_periodo = conn.execute(
+            """
+            SELECT COALESCE(SUM(CASE WHEN intencao = 'SIM' THEN 1 ELSE 0 END), 0) AS total
+            FROM respostas
+            WHERE data_almoco BETWEEN ? AND ?
+            """,
+            (mes_inicio.isoformat(), mes_fim.isoformat()),
+        ).fetchone()["total"]
+
+        ano_inicio, ano_fim = year_bounds(data_base)
+        total_ano_periodo = conn.execute(
+            """
+            SELECT COALESCE(SUM(CASE WHEN intencao = 'SIM' THEN 1 ELSE 0 END), 0) AS total
+            FROM respostas
+            WHERE data_almoco BETWEEN ? AND ?
+            """,
+            (ano_inicio.isoformat(), ano_fim.isoformat()),
+        ).fetchone()["total"]
+
     resumo = {turma: {"sim": 0, "nao": 0, "total": 0} for turma in TURMAS}
     for row in resumo_rows:
         resumo[row["turma"]] = {
@@ -338,6 +424,23 @@ def admin() -> str:
 
     total_semana_geral = sum(semana_sim.values())
 
+    relatorio_periodo = []
+    total_periodo_sim = 0
+    total_periodo_nao = 0
+    for row in relatorio_periodo_rows:
+        sim = row["sim"] or 0
+        nao = row["nao"] or 0
+        relatorio_periodo.append(
+            {
+                "data": row["data_almoco"],
+                "sim": sim,
+                "nao": nao,
+                "total": sim + nao,
+            }
+        )
+        total_periodo_sim += sim
+        total_periodo_nao += nao
+
     quadro_rows = []
     for idx, turma in enumerate(TURMAS_ORDEM_QUADRO, start=1):
         item = turma_semana.get(turma, {"seg": 0, "ter": 0, "qua": 0, "qui": 0, "sex": 0, "total": 0})
@@ -371,6 +474,16 @@ def admin() -> str:
         quadro_rows=quadro_rows,
         semana_inicio=segunda.isoformat(),
         semana_fim=sexta.isoformat(),
+        periodo=periodo,
+        periodo_label=periodo_label,
+        periodo_inicio=periodo_inicio.isoformat(),
+        periodo_fim=periodo_fim.isoformat(),
+        relatorio_periodo=relatorio_periodo,
+        total_periodo_sim=total_periodo_sim,
+        total_periodo_nao=total_periodo_nao,
+        total_semana_periodo=total_semana_periodo,
+        total_mes_periodo=total_mes_periodo,
+        total_ano_periodo=total_ano_periodo,
     )
 
 

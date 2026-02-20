@@ -13,6 +13,7 @@ from flask import Flask, Response, abort, jsonify, redirect, render_template, re
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.platypus import Image as RLImage
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -1342,12 +1343,21 @@ def export_quadro_pdf() -> Response:
     document = SimpleDocTemplate(pdf_buffer, pagesize=landscape(A4), leftMargin=24, rightMargin=24, topMargin=24, bottomMargin=24)
     styles = getSampleStyleSheet()
 
-    story = [
-        Paragraph("Quadro semanal por turma (SIM)", styles["Title"]),
-        Spacer(1, 8),
-        Paragraph(f"Semana: {segunda.isoformat()} até {sexta.isoformat()}", styles["Normal"]),
-        Spacer(1, 12),
-    ]
+    logo_path = BASE_DIR / "static" / "logo_ifc_horizontal_SaoBentodosul.png"
+
+    story = []
+    if logo_path.exists():
+        story.append(RLImage(str(logo_path), width=220, height=55))
+        story.append(Spacer(1, 10))
+
+    story.extend(
+        [
+            Paragraph("Quadro semanal por turma (SIM)", styles["Title"]),
+            Spacer(1, 8),
+            Paragraph(f"Semana: {segunda.isoformat()} até {sexta.isoformat()}", styles["Normal"]),
+            Spacer(1, 12),
+        ]
+    )
 
     table_data = [["#", "Turma", "Seg", "Ter", "Qua", "Qui", "Sex", "Total"]]
     for row in quadro_rows:

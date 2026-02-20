@@ -798,14 +798,6 @@ def importar_quadro_semanal():
 
     sexta = segunda + timedelta(days=4)
     with get_conn() as conn:
-        conn.execute(
-            """
-            DELETE FROM quadro_importado
-            WHERE data_almoco BETWEEN ? AND ?
-            """,
-            (segunda.isoformat(), sexta.isoformat()),
-        )
-
         for turma, dias in quadro_import.items():
             for dia, valor in dias.items():
                 conn.execute(

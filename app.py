@@ -202,7 +202,6 @@ def buscar_aluno():
 @app.post("/enviar")
 def enviar():
     nome = request.form.get("nome", "").strip()
-    matricula = request.form.get("matricula", "").strip()
     turma = request.form.get("turma", "").strip()
     data_referencia = request.form.get("data_almoco", "").strip()
     dias_raw = request.form.getlist("dias")
@@ -218,8 +217,7 @@ def enviar():
     if turma not in TURMAS:
         return redirect(url_for("index", erro="Selecione uma turma válida."))
 
-    if not matricula:
-        matricula = f"AUTO::{turma}::{nome}".upper()
+    matricula = f"AUTO::{turma}::{nome}".upper()
 
     if not dias_marcados:
         return redirect(url_for("index", erro="Marque pelo menos um dia da semana."))

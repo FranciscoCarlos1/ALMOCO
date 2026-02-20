@@ -739,16 +739,25 @@ def importar_quadro_semanal():
     if not rows:
         return redirect(url_for("admin", token=token, data=data_filtro, import_quadro_error="XLSX do quadro semanal está vazio."))
 
-    header = [normalize_header(as_clean_text(col)) for col in rows[0]]
     required_cols = ["turma", "seg", "ter", "qua", "qui", "sex"]
+    header_row_idx = None
+    header: list[str] = []
+    for idx, row in enumerate(rows[:15]):
+        candidate = [normalize_header(as_clean_text(col)) for col in row]
+        if all(col in candidate for col in required_cols):
+            header_row_idx = idx
+            header = candidate
+            break
+
+    if header_row_idx is None:
+        return redirect(url_for("admin", token=token, data=data_filtro, import_quadro_error="Cabeçalho não encontrado. Use colunas: turma, seg, ter, qua, qui, sex."))
+
     col_index: dict[str, int] = {}
     for col in required_cols:
-        if col not in header:
-            return redirect(url_for("admin", token=token, data=data_filtro, import_quadro_error="XLSX precisa das colunas: turma, seg, ter, qua, qui, sex."))
         col_index[col] = header.index(col)
 
     quadro_import: dict[str, dict[str, int]] = {}
-    for values in rows[1:]:
+    for values in rows[header_row_idx + 1:]:
         turma_raw = as_clean_text(values[col_index["turma"]] if col_index["turma"] < len(values) else "")
         if turma_raw.isdigit() and (col_index["turma"] + 1) < len(values):
             turma_raw = as_clean_text(values[col_index["turma"] + 1])
@@ -780,6 +789,12 @@ def importar_quadro_semanal():
 
     if not quadro_import:
         return redirect(url_for("admin", token=token, data=data_filtro, import_quadro_error="Nenhuma turma válida encontrada no XLSX do quadro."))
+
+    total_importado = sum(
+        dias["seg"] + dias["ter"] + dias["qua"] + dias["qui"] + dias["sex"] for dias in quadro_import.values()
+    )
+    if total_importado == 0:
+        return redirect(url_for("admin", token=token, data=data_filtro, import_quadro_error="Arquivo importado resultou em total zero. Operação cancelada para evitar apagar o quadro."))
 
     sexta = segunda + timedelta(days=4)
     with get_conn() as conn:

@@ -7,10 +7,17 @@ import sqlite3
 from datetime import date, datetime, timedelta
 from io import BytesIO, StringIO
 from pathlib import Path
+from typing import Any
 from urllib.request import urlopen
 
 from openpyxl import Workbook, load_workbook
 from flask import Flask, Response, abort, jsonify, redirect, render_template, request, url_for
+try:
+    from psycopg import connect as pg_connect
+    from psycopg.rows import dict_row
+except Exception:
+    pg_connect = None
+    dict_row = None
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import getSampleStyleSheet
@@ -21,6 +28,10 @@ BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR_ENV = os.getenv("ALMOCO_DATA_DIR")
 DB_DIR = Path(DATA_DIR_ENV) if DATA_DIR_ENV else BASE_DIR / "data"
 DB_PATH = DB_DIR / "almoco.db"
+DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = "postgresql://" + DATABASE_URL[len("postgres://"):]
+USE_POSTGRES = DATABASE_URL.startswith("postgresql://")
 ADMIN_TOKEN = os.getenv("ALMOCO_ADMIN_TOKEN", "ifc-sbs")
 
 TURMAS = [
@@ -55,6 +66,38 @@ INTENCOES = ["SIM", "NAO"]
 DIAS_SEMANA = ["seg", "ter", "qua", "qui", "sex"]
 
 app = Flask(__name__)
+
+
+class DBConnection:
+    def __init__(self, raw: Any, is_postgres: bool):
+        self.raw = raw
+        self.is_postgres = is_postgres
+
+    def execute(self, query: str, params: tuple[Any, ...] = ()):  # noqa: ANN001
+        if self.is_postgres:
+            query = query.replace("?", "%s")
+        return self.raw.execute(query, params)
+
+    def commit(self) -> None:
+        self.raw.commit()
+
+    def rollback(self) -> None:
+        self.raw.rollback()
+
+    def close(self) -> None:
+        self.raw.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        if exc_type is not None:
+            try:
+                self.rollback()
+            except Exception:
+                pass
+        self.close()
+        return False
 
 
 def write_backup_xlsx() -> None:
@@ -113,50 +156,93 @@ def prune_old_backups(max_backups: int) -> None:
     return
 
 
-def get_conn() -> sqlite3.Connection:
+def get_conn() -> DBConnection:
+    if USE_POSTGRES:
+        if pg_connect is None or dict_row is None:
+            raise RuntimeError("psycopg não instalado. Adicione 'psycopg[binary]' no requirements.")
+        conn = pg_connect(DATABASE_URL, row_factory=dict_row)
+        return DBConnection(conn, is_postgres=True)
+
     DB_DIR.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
-    return conn
+    return DBConnection(conn, is_postgres=False)
 
 
 def init_db() -> None:
     with get_conn() as conn:
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS alunos (
-                matricula TEXT PRIMARY KEY,
-                nome TEXT NOT NULL,
-                turma TEXT NOT NULL,
-                atualizado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        if USE_POSTGRES:
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS alunos (
+                    matricula TEXT PRIMARY KEY,
+                    nome TEXT NOT NULL,
+                    turma TEXT NOT NULL,
+                    atualizado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """
             )
-            """
-        )
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS respostas (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                nome TEXT NOT NULL,
-                matricula TEXT NOT NULL,
-                turma TEXT NOT NULL,
-                data_almoco DATE NOT NULL,
-                intencao TEXT NOT NULL CHECK (intencao IN ('SIM', 'NAO')),
-                criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(matricula, data_almoco)
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS respostas (
+                    id BIGSERIAL PRIMARY KEY,
+                    nome TEXT NOT NULL,
+                    matricula TEXT NOT NULL,
+                    turma TEXT NOT NULL,
+                    data_almoco DATE NOT NULL,
+                    intencao TEXT NOT NULL CHECK (intencao IN ('SIM', 'NAO')),
+                    criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(matricula, data_almoco)
+                )
+                """
             )
-            """
-        )
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS quadro_importado (
-                turma TEXT NOT NULL,
-                data_almoco DATE NOT NULL,
-                sim INTEGER NOT NULL DEFAULT 0,
-                atualizado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                PRIMARY KEY (turma, data_almoco)
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS quadro_importado (
+                    turma TEXT NOT NULL,
+                    data_almoco DATE NOT NULL,
+                    sim INTEGER NOT NULL DEFAULT 0,
+                    atualizado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (turma, data_almoco)
+                )
+                """
             )
-            """
-        )
+        else:
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS alunos (
+                    matricula TEXT PRIMARY KEY,
+                    nome TEXT NOT NULL,
+                    turma TEXT NOT NULL,
+                    atualizado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS respostas (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    nome TEXT NOT NULL,
+                    matricula TEXT NOT NULL,
+                    turma TEXT NOT NULL,
+                    data_almoco DATE NOT NULL,
+                    intencao TEXT NOT NULL CHECK (intencao IN ('SIM', 'NAO')),
+                    criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(matricula, data_almoco)
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS quadro_importado (
+                    turma TEXT NOT NULL,
+                    data_almoco DATE NOT NULL,
+                    sim INTEGER NOT NULL DEFAULT 0,
+                    atualizado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (turma, data_almoco)
+                )
+                """
+            )
         conn.commit()
 
     write_backup_xlsx()
@@ -196,7 +282,7 @@ def period_bounds(given_date: date, periodo: str) -> tuple[date, date, str]:
     return segunda, sexta, "Semana"
 
 
-def build_quadro_semana(conn: sqlite3.Connection, segunda: date, sexta: date) -> tuple[dict[str, int], list[dict[str, int | str]], int]:
+def build_quadro_semana(conn: DBConnection, segunda: date, sexta: date) -> tuple[dict[str, int], list[dict[str, int | str]], int]:
     turma_semana_rows = conn.execute(
         """
         SELECT turma,

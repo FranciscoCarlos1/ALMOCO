@@ -69,6 +69,18 @@ Os dados ficam em:
 
 Você pode exportar diariamente no painel para gerar arquivos CSV e abrir no LibreOffice/Excel.
 
+### Usar PostgreSQL (recomendado para produção)
+O sistema agora aceita PostgreSQL via variável de ambiente `DATABASE_URL`.
+
+Exemplo local (PowerShell):
+
+```powershell
+$env:DATABASE_URL="postgresql://USUARIO:SENHA@HOST:5432/NOME_DO_BANCO"
+python app.py
+```
+
+Sem `DATABASE_URL`, o sistema continua usando SQLite (`data/almoco.db`).
+
 ## 6) Publicar no Render
 Este projeto já está preparado com `render.yaml`.
 
@@ -84,6 +96,7 @@ Este projeto já está preparado com `render.yaml`.
 ### Variáveis de ambiente no Render
 - `ALMOCO_ADMIN_TOKEN` (já gerada automaticamente)
 - `ALMOCO_DATA_DIR=/var/data`
+- `DATABASE_URL=postgresql://...` (recomendado; banco gerenciado externo)
 
 ### URLs após deploy
 - Formulário: `https://SEU-APP.onrender.com/`

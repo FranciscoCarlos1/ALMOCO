@@ -60,9 +60,9 @@
       <form class="filtro" method="post" action="/admin/importar_alunos" enctype="multipart/form-data">
         <input type="hidden" name="token" value="{{ token }}" />
         <input type="hidden" name="data" value="{{ data_filtro }}" />
-        <label for="arquivo_csv">Importar alunos (CSV: nome,matricula,turma):</label>
-        <input type="file" id="arquivo_csv" name="arquivo_csv" accept=".csv" required />
-        <button type="submit">Importar CSV</button>
+        <label for="arquivo_csv">Importar alunos (CSV/XLSX: nome,matricula,turma):</label>
+        <input type="file" id="arquivo_csv" name="arquivo_csv" accept=".csv,.xlsx" required />
+        <button type="submit">Importar arquivo</button>
       </form>
 
       <section class="totais">

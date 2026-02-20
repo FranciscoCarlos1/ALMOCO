@@ -7,6 +7,7 @@ from datetime import date, datetime, timedelta
 from io import StringIO
 from pathlib import Path
 
+from openpyxl import load_workbook
 from flask import Flask, Response, abort, jsonify, redirect, render_template, request, url_for
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -215,6 +216,12 @@ def get_csv_value(row: dict[str, str], candidates: list[str]) -> str:
         if key in row and row[key] is not None:
             return str(row[key]).strip()
     return ""
+
+
+def as_clean_text(value: object) -> str:
+    if value is None:
+        return ""
+    return str(value).strip()
 
 
 def is_admin_allowed() -> bool:
@@ -536,42 +543,68 @@ def importar_alunos():
     data_filtro = request.form.get("data", "")
 
     if not file or not file.filename:
-        return redirect(url_for("admin", token=token, data=data_filtro, import_error="Selecione um arquivo CSV."))
+        return redirect(url_for("admin", token=token, data=data_filtro, import_error="Selecione um arquivo CSV ou XLSX."))
+
+    filename = file.filename.lower()
+    rows_for_import: list[dict[str, str]] = []
 
     try:
-        payload = file.stream.read().decode("utf-8-sig")
-        sample = payload[:2048]
-        dialect = csv.Sniffer().sniff(sample, delimiters=",;")
-        reader = csv.DictReader(StringIO(payload), dialect=dialect)
+        if filename.endswith(".xlsx"):
+            workbook = load_workbook(file.stream, data_only=True)
+            sheet = workbook.active
+            raw_rows = list(sheet.iter_rows(values_only=True))
+
+            if not raw_rows:
+                return redirect(url_for("admin", token=token, data=data_filtro, import_error="Planilha XLSX vazia."))
+
+            header_original = [as_clean_text(col) for col in raw_rows[0]]
+            if not any(header_original):
+                return redirect(url_for("admin", token=token, data=data_filtro, import_error="XLSX sem cabeçalho."))
+
+            header_normalized = [normalize_header(col) for col in header_original]
+            for values in raw_rows[1:]:
+                item = {header_normalized[i]: as_clean_text(values[i]) for i in range(min(len(header_normalized), len(values)))}
+                rows_for_import.append(item)
+        else:
+            payload = file.stream.read().decode("utf-8-sig")
+            sample = payload[:2048]
+            dialect = csv.Sniffer().sniff(sample, delimiters=",;")
+            reader = csv.DictReader(StringIO(payload), dialect=dialect)
+
+            if not reader.fieldnames:
+                return redirect(url_for("admin", token=token, data=data_filtro, import_error="CSV sem cabeçalho."))
+
+            header_normalized = [normalize_header(item) for item in reader.fieldnames]
+            for row in reader:
+                item = {header_normalized[i]: as_clean_text(row.get(reader.fieldnames[i])) for i in range(len(header_normalized))}
+                rows_for_import.append(item)
     except Exception:
-        return redirect(url_for("admin", token=token, data=data_filtro, import_error="Não foi possível ler o CSV."))
+        return redirect(url_for("admin", token=token, data=data_filtro, import_error="Não foi possível ler o arquivo (use CSV ou XLSX válido)."))
 
-    if not reader.fieldnames:
-        return redirect(url_for("admin", token=token, data=data_filtro, import_error="CSV sem cabeçalho."))
+    if not rows_for_import:
+        return redirect(url_for("admin", token=token, data=data_filtro, import_error="Arquivo sem dados para importar."))
 
-    normalized = [normalize_header(item) for item in reader.fieldnames]
-    header_map = {normalized[i]: reader.fieldnames[i] for i in range(len(normalized))}
+    first_row_keys = set(rows_for_import[0].keys())
+    nome_key = next((h for h in ["nome", "aluno", "nome completo"] if h in first_row_keys), None)
+    matricula_key = next((h for h in ["matricula", "matricula aluno", "ra"] if h in first_row_keys), None)
+    turma_key = next((h for h in ["turma", "serie", "classe"] if h in first_row_keys), None)
 
-    nome_col = next((h for h in ["nome", "aluno", "nome completo"] if h in header_map), None)
-    matricula_col = next((h for h in ["matricula", "matricula aluno", "ra"] if h in header_map), None)
-    turma_col = next((h for h in ["turma", "serie", "classe"] if h in header_map), None)
-
-    if not nome_col or not matricula_col or not turma_col:
+    if not nome_key or not matricula_key or not turma_key:
         return redirect(
             url_for(
                 "admin",
                 token=token,
                 data=data_filtro,
-                import_error="CSV precisa das colunas: nome, matricula e turma.",
+                import_error="Arquivo precisa das colunas: nome, matricula e turma.",
             )
         )
 
     importados = 0
     with get_conn() as conn:
-        for row in reader:
-            nome = get_csv_value(row, [header_map[nome_col]])
-            matricula = get_csv_value(row, [header_map[matricula_col]])
-            turma = get_csv_value(row, [header_map[turma_col]])
+        for row in rows_for_import:
+            nome = as_clean_text(row.get(nome_key))
+            matricula = as_clean_text(row.get(matricula_key))
+            turma = as_clean_text(row.get(turma_key))
 
             if not nome or not matricula or turma not in TURMAS:
                 continue

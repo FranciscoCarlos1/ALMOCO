@@ -269,7 +269,7 @@ def map_turma_value(value: str) -> str | None:
     if "servidor" in normalized:
         return "SERVIDORES"
 
-    serie_match = re.search(r"\b([123])\b", normalized)
+    serie_match = re.search(r"([123])(?=[^0-9]|$)", normalized)
     if not serie_match:
         return None
 

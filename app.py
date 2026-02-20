@@ -935,59 +935,33 @@ def restaurar_backup_quadro():
             )
         )
 
-    latest_backup = backup_files[0]
-    try:
-        workbook = load_workbook(latest_backup, data_only=True)
-    except Exception:
-        return redirect(
-            url_for(
-                "admin",
-                token=token,
-                data=segunda.isoformat(),
-                backup_restore_error="Não foi possível abrir o último backup XLSX.",
-            )
-        )
+    selected_backup = None
+    linhas_restauracao: list[tuple[str, str, int]] = []
 
-    if "quadro_importado" not in workbook.sheetnames:
-        return redirect(
-            url_for(
-                "admin",
-                token=token,
-                data=segunda.isoformat(),
-                backup_restore_error="Backup sem aba 'quadro_importado'.",
-            )
-        )
+    for backup_file in backup_files:
+        try:
+            workbook = load_workbook(backup_file, data_only=True)
+        except Exception:
+            continue
 
-    sheet = workbook["quadro_importado"]
-    rows = list(sheet.iter_rows(values_only=True))
-    if not rows:
-        return redirect(
-            url_for(
-                "admin",
-                token=token,
-                data=segunda.isoformat(),
-                backup_restore_error="Backup sem dados de quadro para restaurar.",
-            )
-        )
+        if "quadro_importado" not in workbook.sheetnames:
+            continue
 
-    header = [normalize_header(as_clean_text(col)) for col in rows[0]]
-    required = ["turma", "data_almoco", "sim"]
-    if not all(col in header for col in required):
-        return redirect(
-            url_for(
-                "admin",
-                token=token,
-                data=segunda.isoformat(),
-                backup_restore_error="Backup com cabeçalho inválido na aba quadro_importado.",
-            )
-        )
+        sheet = workbook["quadro_importado"]
+        rows = list(sheet.iter_rows(values_only=True))
+        if not rows:
+            continue
 
-    idx_turma = header.index("turma")
-    idx_data = header.index("data_almoco")
-    idx_sim = header.index("sim")
+        header = [normalize_header(as_clean_text(col)) for col in rows[0]]
+        required = ["turma", "data_almoco", "sim"]
+        if not all(col in header for col in required):
+            continue
 
-    restaurados = 0
-    with get_conn() as conn:
+        idx_turma = header.index("turma")
+        idx_data = header.index("data_almoco")
+        idx_sim = header.index("sim")
+
+        candidate_rows: list[tuple[str, str, int]] = []
         for values in rows[1:]:
             turma_raw = as_clean_text(values[idx_turma] if idx_turma < len(values) else "")
             data_raw = values[idx_data] if idx_data < len(values) else ""
@@ -1011,7 +985,25 @@ def restaurar_backup_quadro():
             if data_row < segunda or data_row > sexta:
                 continue
 
-            sim = parse_positive_int(sim_raw)
+            candidate_rows.append((turma, data_row.isoformat(), parse_positive_int(sim_raw)))
+
+        if candidate_rows:
+            selected_backup = backup_file
+            linhas_restauracao = candidate_rows
+            break
+
+    if not linhas_restauracao or selected_backup is None:
+        return redirect(
+            url_for(
+                "admin",
+                token=token,
+                data=segunda.isoformat(),
+                backup_restore_error="Nenhum backup possui linhas da semana selecionada.",
+            )
+        )
+
+    with get_conn() as conn:
+        for turma, data_almoco, sim in linhas_restauracao:
             conn.execute(
                 """
                 INSERT INTO quadro_importado (turma, data_almoco, sim)
@@ -1021,20 +1013,9 @@ def restaurar_backup_quadro():
                     sim = excluded.sim,
                     atualizado_em = CURRENT_TIMESTAMP
                 """,
-                (turma, data_row.isoformat(), sim),
+                (turma, data_almoco, sim),
             )
-            restaurados += 1
         conn.commit()
-
-    if restaurados == 0:
-        return redirect(
-            url_for(
-                "admin",
-                token=token,
-                data=segunda.isoformat(),
-                backup_restore_error="Último backup não possui linhas da semana selecionada.",
-            )
-        )
 
     write_backup_xlsx()
 
@@ -1044,7 +1025,7 @@ def restaurar_backup_quadro():
             token=token,
             data=segunda.isoformat(),
             backup_restaurado=1,
-            backup_restore_file=latest_backup.name,
+            backup_restore_file=selected_backup.name,
         )
     )
 

@@ -114,32 +114,6 @@
         <div class="card"><strong>NÃO no período:</strong> {{ total_periodo_nao }}</div>
       </section>
 
-      <table>
-        <thead>
-          <tr>
-            <th>Data</th>
-            <th class="center">SIM</th>
-            <th class="center">NÃO</th>
-            <th class="center">Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for item in relatorio_periodo %}
-          <tr>
-            <td>{{ item.data }}</td>
-            <td class="center">{{ item.sim }}</td>
-            <td class="center">{{ item.nao }}</td>
-            <td class="center"><strong>{{ item.total }}</strong></td>
-          </tr>
-          {% endfor %}
-          {% if not relatorio_periodo %}
-          <tr>
-            <td colspan="4" class="center">Sem registros no período selecionado.</td>
-          </tr>
-          {% endif %}
-        </tbody>
-      </table>
-
       <h2>Quadro semanal por turma (SIM)</h2>
       <div>Semana considerada: {{ semana_inicio }} até {{ semana_fim }}</div>
       <table class="quadro">

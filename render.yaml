@@ -8,6 +8,8 @@ services:
     envVars:
       - key: ALMOCO_ADMIN_TOKEN
         generateValue: true
+      - key: DATABASE_URL
+        sync: false
       - key: ALMOCO_DATA_DIR
         value: /var/data
     disk:

@@ -8,7 +8,7 @@ from datetime import date, datetime, timedelta
 from io import StringIO
 from pathlib import Path
 
-from openpyxl import load_workbook
+from openpyxl import Workbook, load_workbook
 from flask import Flask, Response, abort, jsonify, redirect, render_template, request, url_for
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -49,6 +49,57 @@ INTENCOES = ["SIM", "NAO"]
 DIAS_SEMANA = ["seg", "ter", "qua", "qui", "sex"]
 
 app = Flask(__name__)
+
+
+def write_backup_xlsx() -> None:
+    backup_dir = DB_DIR / "backups"
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    backup_path = backup_dir / f"almoco_backup_{date.today().isoformat()}.xlsx"
+
+    with get_conn() as conn:
+        respostas_rows = conn.execute(
+            """
+            SELECT id, nome, matricula, turma, data_almoco, intencao, criado_em
+            FROM respostas
+            ORDER BY data_almoco, turma, nome
+            """
+        ).fetchall()
+
+        alunos_rows = conn.execute(
+            """
+            SELECT matricula, nome, turma, atualizado_em
+            FROM alunos
+            ORDER BY turma, nome
+            """
+        ).fetchall()
+
+        quadro_rows = conn.execute(
+            """
+            SELECT turma, data_almoco, sim, atualizado_em
+            FROM quadro_importado
+            ORDER BY data_almoco, turma
+            """
+        ).fetchall()
+
+    workbook = Workbook()
+
+    ws_respostas = workbook.active
+    ws_respostas.title = "respostas"
+    ws_respostas.append(["id", "nome", "matricula", "turma", "data_almoco", "intencao", "criado_em"])
+    for row in respostas_rows:
+        ws_respostas.append([row["id"], row["nome"], row["matricula"], row["turma"], row["data_almoco"], row["intencao"], row["criado_em"]])
+
+    ws_alunos = workbook.create_sheet("alunos")
+    ws_alunos.append(["matricula", "nome", "turma", "atualizado_em"])
+    for row in alunos_rows:
+        ws_alunos.append([row["matricula"], row["nome"], row["turma"], row["atualizado_em"]])
+
+    ws_quadro = workbook.create_sheet("quadro_importado")
+    ws_quadro.append(["turma", "data_almoco", "sim", "atualizado_em"])
+    for row in quadro_rows:
+        ws_quadro.append([row["turma"], row["data_almoco"], row["sim"], row["atualizado_em"]])
+
+    workbook.save(backup_path)
 
 
 def get_conn() -> sqlite3.Connection:
@@ -96,6 +147,8 @@ def init_db() -> None:
             """
         )
         conn.commit()
+
+    write_backup_xlsx()
 
 
 def parse_iso_date(value: str) -> date:
@@ -409,6 +462,8 @@ def enviar():
             )
         conn.commit()
 
+    write_backup_xlsx()
+
     return redirect(url_for("index", sucesso=1))
 
 
@@ -686,6 +741,8 @@ def importar_alunos():
             )
             importados += 1
         conn.commit()
+
+    write_backup_xlsx()
 
     if importados == 0:
         return redirect(

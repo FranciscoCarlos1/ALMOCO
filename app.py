@@ -83,6 +83,17 @@ def init_db() -> None:
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS quadro_importado (
+                turma TEXT NOT NULL,
+                data_almoco DATE NOT NULL,
+                sim INTEGER NOT NULL DEFAULT 0,
+                atualizado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (turma, data_almoco)
+            )
+            """
+        )
         conn.commit()
 
 
@@ -134,18 +145,6 @@ def build_quadro_semana(conn: sqlite3.Connection, segunda: date, sexta: date) ->
         (segunda.isoformat(), sexta.isoformat()),
     ).fetchall()
 
-    semana_rows = conn.execute(
-        """
-        SELECT data_almoco,
-               SUM(CASE WHEN intencao = 'SIM' THEN 1 ELSE 0 END) AS sim
-        FROM respostas
-        WHERE data_almoco BETWEEN ? AND ?
-        GROUP BY data_almoco
-        ORDER BY data_almoco
-        """,
-        (segunda.isoformat(), sexta.isoformat()),
-    ).fetchall()
-
     semana_sim: dict[str, int] = {"seg": 0, "ter": 0, "qua": 0, "qui": 0, "sex": 0}
     week_map = {
         segunda.isoformat(): "seg",
@@ -165,12 +164,31 @@ def build_quadro_semana(conn: sqlite3.Connection, segunda: date, sexta: date) ->
             continue
         valor = row["sim"] or 0
         turma_semana[turma][dia] = valor
-        turma_semana[turma]["total"] += valor
 
-    for row in semana_rows:
-        key = week_map.get(row["data_almoco"])
-        if key:
-            semana_sim[key] = row["sim"] or 0
+    quadro_importado_rows = conn.execute(
+        """
+        SELECT turma, data_almoco, sim
+        FROM quadro_importado
+        WHERE data_almoco BETWEEN ? AND ?
+        """,
+        (segunda.isoformat(), sexta.isoformat()),
+    ).fetchall()
+
+    for row in quadro_importado_rows:
+        turma = row["turma"]
+        dia = week_map.get(row["data_almoco"])
+        if turma not in turma_semana or not dia:
+            continue
+        turma_semana[turma][dia] = max(0, int(row["sim"] or 0))
+
+    for turma in TURMAS:
+        item = turma_semana[turma]
+        item["total"] = item["seg"] + item["ter"] + item["qua"] + item["qui"] + item["sex"]
+        semana_sim["seg"] += item["seg"]
+        semana_sim["ter"] += item["ter"]
+        semana_sim["qua"] += item["qua"]
+        semana_sim["qui"] += item["qui"]
+        semana_sim["sex"] += item["sex"]
 
     quadro_rows: list[dict[str, int | str]] = []
     for idx, turma in enumerate(TURMAS_ORDEM_QUADRO, start=1):
@@ -222,6 +240,32 @@ def as_clean_text(value: object) -> str:
     if value is None:
         return ""
     return str(value).strip()
+
+
+def parse_positive_int(value: object) -> int:
+    text = as_clean_text(value).replace(",", ".")
+    if not text:
+        return 0
+    try:
+        return max(0, int(round(float(text))))
+    except ValueError:
+        return 0
+
+
+def map_turma_value(value: str) -> str | None:
+    normalized = normalize_header(value)
+    if not normalized:
+        return None
+
+    for turma in TURMAS:
+        if normalize_header(turma) == normalized:
+            return turma
+
+    for turma, turma_label in TURMAS_LABEL.items():
+        if normalize_header(turma_label) == normalized:
+            return turma
+
+    return None
 
 
 def is_admin_allowed() -> bool:
@@ -515,6 +559,8 @@ def admin() -> str:
         token=request.args.get("token", ""),
         importado=request.args.get("importado") == "1",
         import_error=request.args.get("import_error"),
+        importado_quadro=request.args.get("importado_quadro") == "1",
+        import_quadro_error=request.args.get("import_quadro_error"),
         semana_sim=semana_sim,
         total_semana_geral=total_semana_geral,
         quadro_rows=quadro_rows,
@@ -635,6 +681,104 @@ def importar_alunos():
         )
 
     return redirect(url_for("admin", token=token, data=data_filtro, importado=1))
+
+
+@app.post("/admin/importar_quadro")
+def importar_quadro_semanal():
+    if not is_admin_allowed_form():
+        abort(403, "Acesso negado. Informe um token válido.")
+
+    file = request.files.get("arquivo_quadro")
+    token = request.form.get("token", "")
+    data_filtro = request.form.get("data", "")
+
+    if not file or not file.filename:
+        return redirect(url_for("admin", token=token, data=data_filtro, import_quadro_error="Selecione um arquivo XLSX."))
+
+    if not file.filename.lower().endswith(".xlsx"):
+        return redirect(url_for("admin", token=token, data=data_filtro, import_quadro_error="Use um arquivo .xlsx para o quadro semanal."))
+
+    try:
+        data_base = parse_iso_date(data_filtro) if data_filtro else date.today()
+    except ValueError:
+        data_base = date.today()
+
+    segunda = week_start(data_base)
+    semana_datas = {
+        "seg": segunda,
+        "ter": segunda + timedelta(days=1),
+        "qua": segunda + timedelta(days=2),
+        "qui": segunda + timedelta(days=3),
+        "sex": segunda + timedelta(days=4),
+    }
+
+    try:
+        workbook = load_workbook(file.stream, data_only=True)
+        sheet = workbook.active
+        rows = list(sheet.iter_rows(values_only=True))
+    except Exception:
+        return redirect(url_for("admin", token=token, data=data_filtro, import_quadro_error="Não foi possível ler o XLSX do quadro semanal."))
+
+    if not rows:
+        return redirect(url_for("admin", token=token, data=data_filtro, import_quadro_error="XLSX do quadro semanal está vazio."))
+
+    header = [normalize_header(as_clean_text(col)) for col in rows[0]]
+    required_cols = ["turma", "seg", "ter", "qua", "qui", "sex"]
+    col_index: dict[str, int] = {}
+    for col in required_cols:
+        if col not in header:
+            return redirect(url_for("admin", token=token, data=data_filtro, import_quadro_error="XLSX precisa das colunas: turma, seg, ter, qua, qui, sex."))
+        col_index[col] = header.index(col)
+
+    quadro_import: dict[str, dict[str, int]] = {}
+    for values in rows[1:]:
+        turma_raw = as_clean_text(values[col_index["turma"]] if col_index["turma"] < len(values) else "")
+        if not turma_raw:
+            continue
+        if normalize_header(turma_raw) == "total":
+            continue
+
+        turma = map_turma_value(turma_raw)
+        if not turma:
+            continue
+
+        quadro_import[turma] = {
+            "seg": parse_positive_int(values[col_index["seg"]] if col_index["seg"] < len(values) else 0),
+            "ter": parse_positive_int(values[col_index["ter"]] if col_index["ter"] < len(values) else 0),
+            "qua": parse_positive_int(values[col_index["qua"]] if col_index["qua"] < len(values) else 0),
+            "qui": parse_positive_int(values[col_index["qui"]] if col_index["qui"] < len(values) else 0),
+            "sex": parse_positive_int(values[col_index["sex"]] if col_index["sex"] < len(values) else 0),
+        }
+
+    if not quadro_import:
+        return redirect(url_for("admin", token=token, data=data_filtro, import_quadro_error="Nenhuma turma válida encontrada no XLSX do quadro."))
+
+    sexta = segunda + timedelta(days=4)
+    with get_conn() as conn:
+        conn.execute(
+            """
+            DELETE FROM quadro_importado
+            WHERE data_almoco BETWEEN ? AND ?
+            """,
+            (segunda.isoformat(), sexta.isoformat()),
+        )
+
+        for turma, dias in quadro_import.items():
+            for dia, valor in dias.items():
+                conn.execute(
+                    """
+                    INSERT INTO quadro_importado (turma, data_almoco, sim)
+                    VALUES (?, ?, ?)
+                    ON CONFLICT(turma, data_almoco)
+                    DO UPDATE SET
+                        sim = excluded.sim,
+                        atualizado_em = CURRENT_TIMESTAMP
+                    """,
+                    (turma, semana_datas[dia].isoformat(), valor),
+                )
+        conn.commit()
+
+    return redirect(url_for("admin", token=token, data=segunda.isoformat(), importado_quadro=1))
 
 
 @app.get("/admin/planilha")

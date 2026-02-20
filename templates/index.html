@@ -13,7 +13,8 @@
       label { font-weight: 600; display: block; margin-top: 14px; }
       input, select { width: 100%; padding: 10px; border: 1px solid #cfd6dd; border-radius: 8px; margin-top: 6px; box-sizing: border-box; }
       .dias-group { margin-top: 10px; display: grid; grid-template-columns: repeat(5, minmax(80px, 1fr)); gap: 8px; }
-      .dias-group label { font-weight: 400; margin: 0; display: flex; gap: 6px; align-items: center; }
+      .dias-group label { font-weight: 400; margin: 0; display: flex; gap: 4px; align-items: center; }
+      .dias-group input[type="checkbox"] { width: auto; margin: 0; }
       button { margin-top: 20px; width: 100%; padding: 12px; background: #198754; color: #fff; border: 0; border-radius: 8px; font-size: 1rem; cursor: pointer; }
       button:hover { background: #146c43; }
       .alert { padding: 10px 12px; border-radius: 8px; margin-top: 12px; }
@@ -57,17 +58,16 @@
 
         <label>Marque os dias:</label>
         <div class="dias-group">
-          <label><input type="checkbox" name="dias" value="seg" /> Seg</label>
-          <label><input type="checkbox" name="dias" value="ter" /> Ter</label>
-          <label><input type="checkbox" name="dias" value="qua" /> Qua</label>
-          <label><input type="checkbox" name="dias" value="qui" /> Qui</label>
-          <label><input type="checkbox" name="dias" value="sex" /> Sex</label>
+          <label>Seg <input type="checkbox" name="dias" value="seg" /></label>
+          <label>Ter <input type="checkbox" name="dias" value="ter" /></label>
+          <label>Qua <input type="checkbox" name="dias" value="qua" /></label>
+          <label>Qui <input type="checkbox" name="dias" value="qui" /></label>
+          <label>Sex <input type="checkbox" name="dias" value="sex" /></label>
         </div>
 
         <button type="submit">Enviar resposta</button>
       </form>
 
-      <p class="small">Dica: salve este link no celular para responder rapidamente.</p>
     </main>
   </body>
 </html>

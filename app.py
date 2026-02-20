@@ -100,6 +100,28 @@ def write_backup_xlsx() -> None:
         ws_quadro.append([row["turma"], row["data_almoco"], row["sim"], row["atualizado_em"]])
 
     workbook.save(backup_path)
+    prune_old_backups(30)
+
+
+def prune_old_backups(max_backups: int) -> None:
+    if max_backups <= 0:
+        return
+
+    backup_dir = DB_DIR / "backups"
+    if not backup_dir.exists():
+        return
+
+    files = sorted(
+        backup_dir.glob("almoco_backup_*.xlsx"),
+        key=lambda item: item.stat().st_mtime,
+        reverse=True,
+    )
+
+    for old_file in files[max_backups:]:
+        try:
+            old_file.unlink(missing_ok=True)
+        except OSError:
+            pass
 
 
 def get_conn() -> sqlite3.Connection:
@@ -633,6 +655,9 @@ def admin() -> str:
         import_error=request.args.get("import_error"),
         importado_quadro=request.args.get("importado_quadro") == "1",
         import_quadro_error=request.args.get("import_quadro_error"),
+        backup_restaurado=request.args.get("backup_restaurado") == "1",
+        backup_restore_error=request.args.get("backup_restore_error"),
+        backup_restore_file=request.args.get("backup_restore_file", ""),
         semana_sim=semana_sim,
         total_semana_geral=total_semana_geral,
         quadro_rows=quadro_rows,
@@ -870,7 +895,155 @@ def importar_quadro_semanal():
                 )
         conn.commit()
 
+    write_backup_xlsx()
+
     return redirect(url_for("admin", token=token, data=segunda.isoformat(), importado_quadro=1))
+
+
+@app.post("/admin/restaurar_backup")
+def restaurar_backup_quadro():
+    if not is_admin_allowed_form():
+        abort(403, "Acesso negado. Informe um token válido.")
+
+    token = request.form.get("token", "")
+    data_filtro = request.form.get("data", "")
+
+    try:
+        data_base = parse_iso_date(data_filtro) if data_filtro else date.today()
+    except ValueError:
+        data_base = date.today()
+
+    segunda = week_start(data_base)
+    sexta = segunda + timedelta(days=4)
+
+    backup_dir = DB_DIR / "backups"
+    backup_files = sorted(
+        backup_dir.glob("almoco_backup_*.xlsx"),
+        key=lambda item: item.stat().st_mtime,
+        reverse=True,
+    )
+    if not backup_files:
+        return redirect(
+            url_for(
+                "admin",
+                token=token,
+                data=segunda.isoformat(),
+                backup_restore_error="Nenhum backup XLSX encontrado.",
+            )
+        )
+
+    latest_backup = backup_files[0]
+    try:
+        workbook = load_workbook(latest_backup, data_only=True)
+    except Exception:
+        return redirect(
+            url_for(
+                "admin",
+                token=token,
+                data=segunda.isoformat(),
+                backup_restore_error="Não foi possível abrir o último backup XLSX.",
+            )
+        )
+
+    if "quadro_importado" not in workbook.sheetnames:
+        return redirect(
+            url_for(
+                "admin",
+                token=token,
+                data=segunda.isoformat(),
+                backup_restore_error="Backup sem aba 'quadro_importado'.",
+            )
+        )
+
+    sheet = workbook["quadro_importado"]
+    rows = list(sheet.iter_rows(values_only=True))
+    if not rows:
+        return redirect(
+            url_for(
+                "admin",
+                token=token,
+                data=segunda.isoformat(),
+                backup_restore_error="Backup sem dados de quadro para restaurar.",
+            )
+        )
+
+    header = [normalize_header(as_clean_text(col)) for col in rows[0]]
+    required = ["turma", "data_almoco", "sim"]
+    if not all(col in header for col in required):
+        return redirect(
+            url_for(
+                "admin",
+                token=token,
+                data=segunda.isoformat(),
+                backup_restore_error="Backup com cabeçalho inválido na aba quadro_importado.",
+            )
+        )
+
+    idx_turma = header.index("turma")
+    idx_data = header.index("data_almoco")
+    idx_sim = header.index("sim")
+
+    restaurados = 0
+    with get_conn() as conn:
+        for values in rows[1:]:
+            turma_raw = as_clean_text(values[idx_turma] if idx_turma < len(values) else "")
+            data_raw = values[idx_data] if idx_data < len(values) else ""
+            sim_raw = values[idx_sim] if idx_sim < len(values) else 0
+
+            turma = map_turma_value(turma_raw)
+            if not turma:
+                continue
+
+            if isinstance(data_raw, datetime):
+                data_row = data_raw.date()
+            elif isinstance(data_raw, date):
+                data_row = data_raw
+            else:
+                data_text = as_clean_text(data_raw)
+                try:
+                    data_row = parse_iso_date(data_text)
+                except ValueError:
+                    continue
+
+            if data_row < segunda or data_row > sexta:
+                continue
+
+            sim = parse_positive_int(sim_raw)
+            conn.execute(
+                """
+                INSERT INTO quadro_importado (turma, data_almoco, sim)
+                VALUES (?, ?, ?)
+                ON CONFLICT(turma, data_almoco)
+                DO UPDATE SET
+                    sim = excluded.sim,
+                    atualizado_em = CURRENT_TIMESTAMP
+                """,
+                (turma, data_row.isoformat(), sim),
+            )
+            restaurados += 1
+        conn.commit()
+
+    if restaurados == 0:
+        return redirect(
+            url_for(
+                "admin",
+                token=token,
+                data=segunda.isoformat(),
+                backup_restore_error="Último backup não possui linhas da semana selecionada.",
+            )
+        )
+
+    write_backup_xlsx()
+
+    return redirect(
+        url_for(
+            "admin",
+            token=token,
+            data=segunda.isoformat(),
+            backup_restaurado=1,
+            backup_restore_file=latest_backup.name,
+        )
+    )
 
 
 @app.get("/admin/planilha")

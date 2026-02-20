@@ -49,6 +49,14 @@
       <div class="alert err">{{ import_quadro_error }}</div>
       {% endif %}
 
+      {% if backup_restaurado %}
+      <div class="alert ok">Quadro restaurado com sucesso usando o último backup{% if backup_restore_file %}: {{ backup_restore_file }}{% endif %}.</div>
+      {% endif %}
+
+      {% if backup_restore_error %}
+      <div class="alert err">{{ backup_restore_error }}</div>
+      {% endif %}
+
       <form class="filtro" method="get" action="/admin">
         <input type="hidden" name="token" value="{{ token }}" />
         <label for="data">Data:</label>
@@ -81,6 +89,13 @@
         <span>Modelo de cabeçalho: <strong>turma,seg,ter,qua,qui,sex</strong></span>
         <input type="file" id="arquivo_quadro" name="arquivo_quadro" accept=".xlsx" required />
         <button type="submit">Importar quadro XLSX</button>
+      </form>
+
+      <form class="filtro" method="post" action="/admin/restaurar_backup" onsubmit="return confirm('Restaurar o quadro da semana usando o último backup?');">
+        <input type="hidden" name="token" value="{{ token }}" />
+        <input type="hidden" name="data" value="{{ data_filtro }}" />
+        <span>Recuperação rápida:</span>
+        <button type="submit">Restaurar quadro do último backup</button>
       </form>
 
       <section class="totais">

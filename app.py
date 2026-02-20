@@ -7,6 +7,7 @@ import sqlite3
 from datetime import date, datetime, timedelta
 from io import BytesIO, StringIO
 from pathlib import Path
+from urllib.request import urlopen
 
 from openpyxl import Workbook, load_workbook
 from flask import Flask, Response, abort, jsonify, redirect, render_template, request, url_for
@@ -1342,11 +1343,24 @@ def export_quadro_pdf() -> Response:
     document = SimpleDocTemplate(pdf_buffer, pagesize=landscape(A4), leftMargin=24, rightMargin=24, topMargin=24, bottomMargin=24)
     styles = getSampleStyleSheet()
 
-    logo_path = BASE_DIR / "static" / "logo_ifc_horizontal_SaoBentodosul.png"
-
     story = []
-    if logo_path.exists():
-        story.append(RLImage(str(logo_path), width=220, height=55))
+    logo_image = None
+    logo_url = request.url_root.rstrip("/") + url_for("static", filename="logo_ifc_horizontal_SaoBentodosul.png")
+    try:
+        with urlopen(logo_url, timeout=5) as response:
+            logo_bytes = response.read()
+        logo_image = RLImage(BytesIO(logo_bytes), width=320, height=105)
+    except Exception:
+        logo_path = BASE_DIR / "static" / "logo_ifc_horizontal_SaoBentodosul.png"
+        if logo_path.exists():
+            try:
+                logo_image = RLImage(str(logo_path), width=320, height=105)
+            except Exception:
+                logo_image = None
+
+    if logo_image is not None:
+        logo_image.hAlign = "CENTER"
+        story.append(logo_image)
         story.append(Spacer(1, 10))
 
     story.extend(

@@ -119,6 +119,78 @@ def period_bounds(given_date: date, periodo: str) -> tuple[date, date, str]:
     return segunda, sexta, "Semana"
 
 
+def build_quadro_semana(conn: sqlite3.Connection, segunda: date, sexta: date) -> tuple[dict[str, int], list[dict[str, int | str]], int]:
+    turma_semana_rows = conn.execute(
+        """
+        SELECT turma,
+               data_almoco,
+               SUM(CASE WHEN intencao = 'SIM' THEN 1 ELSE 0 END) AS sim
+        FROM respostas
+        WHERE data_almoco BETWEEN ? AND ?
+        GROUP BY turma, data_almoco
+        ORDER BY turma, data_almoco
+        """,
+        (segunda.isoformat(), sexta.isoformat()),
+    ).fetchall()
+
+    semana_rows = conn.execute(
+        """
+        SELECT data_almoco,
+               SUM(CASE WHEN intencao = 'SIM' THEN 1 ELSE 0 END) AS sim
+        FROM respostas
+        WHERE data_almoco BETWEEN ? AND ?
+        GROUP BY data_almoco
+        ORDER BY data_almoco
+        """,
+        (segunda.isoformat(), sexta.isoformat()),
+    ).fetchall()
+
+    semana_sim: dict[str, int] = {"seg": 0, "ter": 0, "qua": 0, "qui": 0, "sex": 0}
+    week_map = {
+        segunda.isoformat(): "seg",
+        (segunda + timedelta(days=1)).isoformat(): "ter",
+        (segunda + timedelta(days=2)).isoformat(): "qua",
+        (segunda + timedelta(days=3)).isoformat(): "qui",
+        (segunda + timedelta(days=4)).isoformat(): "sex",
+    }
+
+    turma_semana: dict[str, dict[str, int]] = {
+        turma: {"seg": 0, "ter": 0, "qua": 0, "qui": 0, "sex": 0, "total": 0} for turma in TURMAS
+    }
+    for row in turma_semana_rows:
+        turma = row["turma"]
+        dia = week_map.get(row["data_almoco"])
+        if turma not in turma_semana or not dia:
+            continue
+        valor = row["sim"] or 0
+        turma_semana[turma][dia] = valor
+        turma_semana[turma]["total"] += valor
+
+    for row in semana_rows:
+        key = week_map.get(row["data_almoco"])
+        if key:
+            semana_sim[key] = row["sim"] or 0
+
+    quadro_rows: list[dict[str, int | str]] = []
+    for idx, turma in enumerate(TURMAS_ORDEM_QUADRO, start=1):
+        item = turma_semana.get(turma, {"seg": 0, "ter": 0, "qua": 0, "qui": 0, "sex": 0, "total": 0})
+        quadro_rows.append(
+            {
+                "ordem": idx,
+                "turma_nome": TURMAS_LABEL.get(turma, turma),
+                "seg": item["seg"],
+                "ter": item["ter"],
+                "qua": item["qua"],
+                "qui": item["qui"],
+                "sex": item["sex"],
+                "total": item["total"],
+            }
+        )
+
+    total_semana_geral = sum(semana_sim.values())
+    return semana_sim, quadro_rows, total_semana_geral
+
+
 def normalize_header(header: str) -> str:
     return (
         header.strip()
@@ -307,31 +379,6 @@ def admin() -> str:
             (data_filtro,),
         ).fetchall()
 
-        turma_semana_rows = conn.execute(
-            """
-            SELECT turma,
-                   data_almoco,
-                   SUM(CASE WHEN intencao = 'SIM' THEN 1 ELSE 0 END) AS sim
-            FROM respostas
-            WHERE data_almoco BETWEEN ? AND ?
-            GROUP BY turma, data_almoco
-            ORDER BY turma, data_almoco
-            """,
-            (segunda.isoformat(), sexta.isoformat()),
-        ).fetchall()
-
-        semana_rows = conn.execute(
-            """
-            SELECT data_almoco,
-                   SUM(CASE WHEN intencao = 'SIM' THEN 1 ELSE 0 END) AS sim
-            FROM respostas
-            WHERE data_almoco BETWEEN ? AND ?
-            GROUP BY data_almoco
-            ORDER BY data_almoco
-            """,
-            (segunda.isoformat(), sexta.isoformat()),
-        ).fetchall()
-
         respostas = conn.execute(
             """
             SELECT nome, matricula, turma, intencao, criado_em
@@ -384,6 +431,8 @@ def admin() -> str:
             (ano_inicio.isoformat(), ano_fim.isoformat()),
         ).fetchone()["total"]
 
+        semana_sim, quadro_rows, total_semana_geral = build_quadro_semana(conn, segunda, sexta)
+
     resumo = {turma: {"sim": 0, "nao": 0, "total": 0} for turma in TURMAS}
     for row in resumo_rows:
         resumo[row["turma"]] = {
@@ -395,32 +444,6 @@ def admin() -> str:
     total_sim = sum(item["sim"] for item in resumo.values())
     total_nao = sum(item["nao"] for item in resumo.values())
     total_geral = total_sim
-
-    semana_sim = {"seg": 0, "ter": 0, "qua": 0, "qui": 0, "sex": 0}
-    week_map = {
-        segunda.isoformat(): "seg",
-        (segunda + timedelta(days=1)).isoformat(): "ter",
-        (segunda + timedelta(days=2)).isoformat(): "qua",
-        (segunda + timedelta(days=3)).isoformat(): "qui",
-        (segunda + timedelta(days=4)).isoformat(): "sex",
-    }
-
-    turma_semana = {turma: {"seg": 0, "ter": 0, "qua": 0, "qui": 0, "sex": 0, "total": 0} for turma in TURMAS}
-    for row in turma_semana_rows:
-        turma = row["turma"]
-        dia = week_map.get(row["data_almoco"])
-        if turma not in turma_semana or not dia:
-            continue
-        valor = row["sim"] or 0
-        turma_semana[turma][dia] = valor
-        turma_semana[turma]["total"] += valor
-
-    for row in semana_rows:
-        key = week_map.get(row["data_almoco"])
-        if key:
-            semana_sim[key] = row["sim"] or 0
-
-    total_semana_geral = sum(semana_sim.values())
 
     relatorio_periodo = []
     total_periodo_sim = 0
@@ -439,22 +462,6 @@ def admin() -> str:
         total_periodo_sim += sim
         total_periodo_nao += nao
 
-    quadro_rows = []
-    for idx, turma in enumerate(TURMAS_ORDEM_QUADRO, start=1):
-        item = turma_semana.get(turma, {"seg": 0, "ter": 0, "qua": 0, "qui": 0, "sex": 0, "total": 0})
-        quadro_rows.append(
-            {
-                "ordem": idx,
-                "turma_nome": TURMAS_LABEL.get(turma, turma),
-                "seg": item["seg"],
-                "ter": item["ter"],
-                "qua": item["qua"],
-                "qui": item["qui"],
-                "sex": item["sex"],
-                "total": item["total"],
-            }
-        )
-
     return render_template(
         "admin.html",
         resumo=resumo,
@@ -467,7 +474,6 @@ def admin() -> str:
         importado=request.args.get("importado") == "1",
         import_error=request.args.get("import_error"),
         semana_sim=semana_sim,
-        turma_semana=turma_semana,
         total_semana_geral=total_semana_geral,
         quadro_rows=quadro_rows,
         semana_inicio=segunda.isoformat(),
@@ -743,6 +749,53 @@ def export_csv() -> Response:
         csv_data,
         mimetype="text/csv",
         headers={"Content-Disposition": f"attachment; filename=almoco_{data_filtro}.csv"},
+    )
+
+
+@app.get("/export_quadro.csv")
+def export_quadro_csv() -> Response:
+    if not is_admin_allowed():
+        abort(403, "Acesso negado. Informe um token válido na URL.")
+
+    data_filtro = request.args.get("data") or date.today().isoformat()
+    try:
+        data_base = parse_iso_date(data_filtro)
+    except ValueError:
+        data_base = date.today()
+
+    segunda = week_start(data_base)
+    sexta = segunda + timedelta(days=4)
+
+    with get_conn() as conn:
+        semana_sim, quadro_rows, total_semana_geral = build_quadro_semana(conn, segunda, sexta)
+
+    output = StringIO()
+    writer = csv.writer(output, delimiter=';')
+    writer.writerow(["#", "Turma", "Seg", "Ter", "Qua", "Qui", "Sex", "Total"])
+
+    for row in quadro_rows:
+        writer.writerow(
+            [
+                row["ordem"],
+                row["turma_nome"],
+                row["seg"],
+                row["ter"],
+                row["qua"],
+                row["qui"],
+                row["sex"],
+                row["total"],
+            ]
+        )
+
+    writer.writerow(["", "Total", semana_sim["seg"], semana_sim["ter"], semana_sim["qua"], semana_sim["qui"], semana_sim["sex"], total_semana_geral])
+
+    csv_data = output.getvalue()
+    output.close()
+
+    return Response(
+        csv_data,
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=quadro_semanal_{segunda.isoformat()}_{sexta.isoformat()}.csv"},
     )
 
 

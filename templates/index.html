@@ -21,7 +21,6 @@
       .err { background: #ffd9d9; color: #8f1a1a; }
       .small { font-size: .9rem; color: #666; margin-top: 14px; }
       .hint { margin-top: 8px; font-size: .9rem; color: #555; }
-      .dia-semana { margin-top: 8px; font-size: .95rem; color: #198754; font-weight: 600; }
       @media (max-width: 600px) {
         .logo { max-width: 160px; }
       }
@@ -55,7 +54,6 @@
 
         <label for="data_almoco">Data de referência da semana</label>
         <input id="data_almoco" name="data_almoco" type="date" value="{{ hoje }}" required />
-        <div class="dia-semana" id="diaSemana"></div>
 
         <label>Marque os dias:</label>
         <div class="dias-group">
@@ -71,35 +69,5 @@
 
       <p class="small">Dica: salve este link no celular para responder rapidamente.</p>
     </main>
-
-    <script>
-      const campoData = document.getElementById("data_almoco");
-      const diaSemana = document.getElementById("diaSemana");
-
-      function atualizarDiaSemana() {
-        const valor = campoData.value;
-        if (!valor) {
-          diaSemana.textContent = "";
-          return;
-        }
-
-        const data = new Date(`${valor}T00:00:00`);
-        const nomeDia = data.toLocaleDateString("pt-BR", { weekday: "long" });
-        const nomeFormatado = nomeDia.charAt(0).toUpperCase() + nomeDia.slice(1);
-
-        const segunda = new Date(data);
-        const ajuste = (data.getDay() + 6) % 7;
-        segunda.setDate(data.getDate() - ajuste);
-
-        const sexta = new Date(segunda);
-        sexta.setDate(segunda.getDate() + 4);
-
-        const fmt = (d) => d.toLocaleDateString("pt-BR");
-        diaSemana.textContent = `Dia da referência: ${nomeFormatado} | Semana: ${fmt(segunda)} a ${fmt(sexta)}`;
-      }
-
-      campoData.addEventListener("change", atualizarDiaSemana);
-      atualizarDiaSemana();
-    </script>
   </body>
 </html>

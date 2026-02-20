@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import os
+import re
 import sqlite3
 from datetime import date, datetime, timedelta
 from io import StringIO
@@ -264,6 +265,21 @@ def map_turma_value(value: str) -> str | None:
     for turma, turma_label in TURMAS_LABEL.items():
         if normalize_header(turma_label) == normalized:
             return turma
+
+    if "servidor" in normalized:
+        return "SERVIDORES"
+
+    serie_match = re.search(r"\b([123])\b", normalized)
+    if not serie_match:
+        return None
+
+    serie = serie_match.group(1)
+    if "informatica" in normalized:
+        return {"1": "TIN I", "2": "TIN II", "3": "TIN III"}.get(serie)
+    if "automacao" in normalized:
+        return {"1": "TAI I", "2": "TAI II", "3": "TAI III"}.get(serie)
+    if "seguranca" in normalized and "trabalho" in normalized:
+        return {"1": "TST I", "2": "TST II", "3": "TST III"}.get(serie)
 
     return None
 
@@ -733,6 +749,8 @@ def importar_quadro_semanal():
     quadro_import: dict[str, dict[str, int]] = {}
     for values in rows[1:]:
         turma_raw = as_clean_text(values[col_index["turma"]] if col_index["turma"] < len(values) else "")
+        if turma_raw.isdigit() and (col_index["turma"] + 1) < len(values):
+            turma_raw = as_clean_text(values[col_index["turma"] + 1])
         if not turma_raw:
             continue
         if normalize_header(turma_raw) == "total":
@@ -742,13 +760,22 @@ def importar_quadro_semanal():
         if not turma:
             continue
 
-        quadro_import[turma] = {
+        linha = {
             "seg": parse_positive_int(values[col_index["seg"]] if col_index["seg"] < len(values) else 0),
             "ter": parse_positive_int(values[col_index["ter"]] if col_index["ter"] < len(values) else 0),
             "qua": parse_positive_int(values[col_index["qua"]] if col_index["qua"] < len(values) else 0),
             "qui": parse_positive_int(values[col_index["qui"]] if col_index["qui"] < len(values) else 0),
             "sex": parse_positive_int(values[col_index["sex"]] if col_index["sex"] < len(values) else 0),
         }
+
+        if turma not in quadro_import:
+            quadro_import[turma] = linha
+        else:
+            quadro_import[turma]["seg"] += linha["seg"]
+            quadro_import[turma]["ter"] += linha["ter"]
+            quadro_import[turma]["qua"] += linha["qua"]
+            quadro_import[turma]["qui"] += linha["qui"]
+            quadro_import[turma]["sex"] += linha["sex"]
 
     if not quadro_import:
         return redirect(url_for("admin", token=token, data=data_filtro, import_quadro_error="Nenhuma turma válida encontrada no XLSX do quadro."))

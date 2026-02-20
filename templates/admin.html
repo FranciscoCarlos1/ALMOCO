@@ -7,6 +7,7 @@
     <style>
       body { font-family: Arial, sans-serif; margin: 0; background: #f4f6f8; }
       .container { max-width: 1080px; margin: 24px auto; background: #fff; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,.08); }
+      .logo { width: 100%; max-width: 420px; display: block; margin: 0 auto 16px auto; }
       h1 { margin-top: 0; }
       .totais { display: flex; gap: 14px; flex-wrap: wrap; margin: 14px 0 20px; }
       .card { background: #eef3ff; border: 1px solid #d7e2ff; border-radius: 8px; padding: 10px 14px; min-width: 160px; }
@@ -29,6 +30,7 @@
   </head>
   <body>
     <main class="container">
+      <img class="logo" src="/static/logo_ifc_horizontal_SaoBentodosul.png" onerror="this.onerror=null;this.src='/static/logo-ifc.svg';" alt="Instituto Federal Catarinense" />
       <h1>Painel de Intenção de Almoço</h1>
 
       {% if importado %}
@@ -43,8 +45,14 @@
         <input type="hidden" name="token" value="{{ token }}" />
         <label for="data">Data:</label>
         <input type="date" id="data" name="data" value="{{ data_filtro }}" />
+        <label for="periodo">Relatório:</label>
+        <select id="periodo" name="periodo">
+          <option value="semana" {% if periodo == 'semana' %}selected{% endif %}>Semana</option>
+          <option value="mes" {% if periodo == 'mes' %}selected{% endif %}>Mês</option>
+          <option value="ano" {% if periodo == 'ano' %}selected{% endif %}>Ano</option>
+        </select>
         <button type="submit">Atualizar</button>
-        <a class="btn primary" href="/export.csv?data={{ data_filtro }}&token={{ token }}">Exportar CSV</a>
+        <a class="btn primary" href="/export.csv?data={{ data_filtro }}&periodo={{ periodo }}&token={{ token }}">Exportar CSV</a>
         <a class="btn primary" href="/admin/planilha?token={{ token }}&turma=TIN I&semana={{ data_filtro }}">Planilha semanal (ODS)</a>
       </form>
 
@@ -61,6 +69,42 @@
         <div class="card"><strong>NÃO:</strong> {{ total_nao }}</div>
         <div class="card"><strong>TOTAL (SIM):</strong> {{ total_geral }}</div>
       </section>
+
+      <h2>Relatório por período</h2>
+      <div>Período: {{ periodo_label }} | {{ periodo_inicio }} até {{ periodo_fim }}</div>
+      <section class="totais">
+        <div class="card"><strong>Total da semana:</strong> {{ total_semana_periodo }}</div>
+        <div class="card"><strong>Total do mês:</strong> {{ total_mes_periodo }}</div>
+        <div class="card"><strong>Total do ano:</strong> {{ total_ano_periodo }}</div>
+        <div class="card"><strong>SIM no período:</strong> {{ total_periodo_sim }}</div>
+        <div class="card"><strong>NÃO no período:</strong> {{ total_periodo_nao }}</div>
+      </section>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th class="center">SIM</th>
+            <th class="center">NÃO</th>
+            <th class="center">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in relatorio_periodo %}
+          <tr>
+            <td>{{ item.data }}</td>
+            <td class="center">{{ item.sim }}</td>
+            <td class="center">{{ item.nao }}</td>
+            <td class="center"><strong>{{ item.total }}</strong></td>
+          </tr>
+          {% endfor %}
+          {% if not relatorio_periodo %}
+          <tr>
+            <td colspan="4" class="center">Sem registros no período selecionado.</td>
+          </tr>
+          {% endif %}
+        </tbody>
+      </table>
 
       <h2>Quadro semanal por turma (SIM)</h2>
       <div>Semana considerada: {{ semana_inicio }} até {{ semana_fim }}</div>

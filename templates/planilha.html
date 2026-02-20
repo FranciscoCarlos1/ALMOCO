@@ -7,6 +7,7 @@
     <style>
       body { font-family: Arial, sans-serif; margin: 0; background: #f4f6f8; }
       .container { max-width: 1100px; margin: 24px auto; background: #fff; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,.08); }
+      .logo { width: 100%; max-width: 420px; display: block; margin: 0 auto 16px auto; }
       .topbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
       input, select, button, a.btn { padding: 8px 10px; border-radius: 8px; border: 1px solid #cfd6dd; text-decoration: none; color: #111; }
       button, a.btn.primary { background: #0b5ed7; border-color: #0b5ed7; color: #fff; cursor: pointer; }
@@ -19,6 +20,7 @@
   </head>
   <body>
     <main class="container">
+      <img class="logo" src="/static/logo_ifc_horizontal_SaoBentodosul.png" onerror="this.onerror=null;this.src='/static/logo-ifc.svg';" alt="Instituto Federal Catarinense" />
       <h1>Intenção de Almoço - Planilha Semanal</h1>
 
       <form class="topbar" method="get" action="/admin/planilha">

@@ -7,7 +7,7 @@
     <style>
       body { font-family: Arial, sans-serif; margin: 0; background: #f4f6f8; }
       .container { max-width: 620px; margin: 40px auto; background: #fff; padding: 24px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,.08); }
-      .logo { width: 100%; max-width: 200px; display: block; margin: 0 0 12px 0; border-radius: 6px; }
+      .logo { width: 100%; max-width: 420px; display: block; margin: 0 auto 16px auto; }
       h1 { margin-top: 0; font-size: 1.5rem; }
       p { color: #444; }
       label { font-weight: 600; display: block; margin-top: 14px; }
@@ -21,7 +21,7 @@
       .err { background: #ffd9d9; color: #8f1a1a; }
       .small { font-size: .9rem; color: #666; margin-top: 14px; }
       .hint { margin-top: 8px; font-size: .9rem; color: #555; }
-      .dia-semana { margin-top: 8px; font-size: .95rem; color: #0b5ed7; font-weight: 600; }
+      .dia-semana { margin-top: 8px; font-size: .95rem; color: #198754; font-weight: 600; }
       @media (max-width: 600px) {
         .logo { max-width: 160px; }
       }
@@ -29,7 +29,7 @@
   </head>
   <body>
     <main class="container">
-      <img class="logo" src="/static/logo-ifc.svg" alt="Instituto Federal Catarinense" />
+      <img class="logo" src="/static/logo_ifc_horizontal_SaoBentodosul.png" onerror="this.onerror=null;this.src='/static/logo-ifc.svg';" alt="Instituto Federal Catarinense" />
       <h1>Intenção de Almoço - IFC SBS</h1>
       <p>Preencha para informar em quais dias da semana você vai almoçar.</p>
 
@@ -44,6 +44,9 @@
       <form action="/enviar" method="post">
         <label for="nome">Nome completo</label>
         <input id="nome" name="nome" type="text" required />
+
+        <label for="matricula">Matrícula (opcional para servidores)</label>
+        <input id="matricula" name="matricula" type="text" />
 
         <label for="turma">Turma</label>
         <select id="turma" name="turma" required>

@@ -158,11 +158,13 @@ def prune_old_backups(max_backups: int) -> None:
 
 def get_conn() -> DBConnection:
     if USE_POSTGRES:
+        print(f"[ALMOCO] Usando Postgres: {DATABASE_URL}")
         if pg_connect is None or dict_row is None:
             raise RuntimeError("psycopg não instalado. Adicione 'psycopg[binary]' no requirements.")
         conn = pg_connect(DATABASE_URL, row_factory=dict_row)
         return DBConnection(conn, is_postgres=True)
 
+    print(f"[ALMOCO] Usando SQLite: {DB_PATH}")
     DB_DIR.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row

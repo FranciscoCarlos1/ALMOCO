@@ -532,6 +532,7 @@ def enviar():
     }
 
     with get_conn() as conn:
+        print(f"[ALMOCO] Inserindo aluno: {matricula}, {nome}, {turma}")
         conn.execute(
             """
             INSERT INTO alunos (matricula, nome, turma)
@@ -547,19 +548,24 @@ def enviar():
 
         for dia, data_almoco in datas_semana.items():
             intencao = "SIM" if dia in dias_marcados else "NAO"
-            conn.execute(
-                """
-                INSERT INTO respostas (nome, matricula, turma, data_almoco, intencao)
-                VALUES (?, ?, ?, ?, ?)
-                ON CONFLICT(matricula, data_almoco)
-                DO UPDATE SET
-                    nome = excluded.nome,
-                    turma = excluded.turma,
-                    intencao = excluded.intencao,
-                    criado_em = CURRENT_TIMESTAMP
-                """,
-                (nome, matricula, turma, data_almoco.isoformat(), intencao),
-            )
+            print(f"[ALMOCO] Inserindo resposta: nome={nome}, matricula={matricula}, turma={turma}, data_almoco={data_almoco}, intencao={intencao}")
+            try:
+                conn.execute(
+                    """
+                    INSERT INTO respostas (nome, matricula, turma, data_almoco, intencao)
+                    VALUES (?, ?, ?, ?, ?)
+                    ON CONFLICT(matricula, data_almoco)
+                    DO UPDATE SET
+                        nome = excluded.nome,
+                        turma = excluded.turma,
+                        intencao = excluded.intencao,
+                        criado_em = CURRENT_TIMESTAMP
+                    """,
+                    (nome, matricula, turma, data_almoco.isoformat(), intencao),
+                )
+                print("[ALMOCO] Resposta inserida com sucesso.")
+            except Exception as e:
+                print(f"[ALMOCO] ERRO ao inserir resposta: {e}")
         conn.commit()
 
     write_backup_xlsx()

@@ -1,33 +1,21 @@
 import csv
 import os
 import re
-import sqlite3
 from datetime import date, datetime, timedelta
 from flask import Flask, Response, abort, jsonify, redirect, render_template, request, url_for, send_file
 from io import BytesIO
 from openpyxl import Workbook
 import logging
 logging.basicConfig(level=logging.INFO)
-try:
-    from psycopg import connect as pg_connect
-    from psycopg.rows import dict_row
-except Exception:
-    pg_connect = None
-    dict_row = None
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.platypus import Image as RLImage
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+# Importa conexão do banco separada
+from db import DBConnection, get_conn
 
-BASE_DIR = Path(__file__).resolve().parent
-DATA_DIR_ENV = os.getenv("ALMOCO_DATA_DIR")
-DB_DIR = Path(DATA_DIR_ENV) if DATA_DIR_ENV else BASE_DIR / "data"
-DB_PATH = DB_DIR / "almoco.db"
-DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
-if DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = "postgresql://" + DATABASE_URL[len("postgres://"):]
-USE_POSTGRES = DATABASE_URL.startswith("postgresql://")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ADMIN_TOKEN = os.getenv("ALMOCO_ADMIN_TOKEN", "ifc-sbs")
 
 TURMAS = [
@@ -61,39 +49,18 @@ TURMAS_ORDEM_QUADRO = ["TAI I", "TAI II", "TAI III", "TIN I", "TIN II", "TIN III
 INTENCOES = ["SIM", "NAO"]
 DIAS_SEMANA = ["seg", "ter", "qua", "qui", "sex"]
 
+
+from flask import Flask
 app = Flask(__name__)
 
+# Importa blueprints das rotas
+from routes_main import bp_main
+from routes_admin import bp_admin
+app.register_blueprint(bp_main)
+app.register_blueprint(bp_admin)
 
-class DBConnection:
-    def __init__(self, raw: Any, is_postgres: bool):
-        self.raw = raw
-        self.is_postgres = is_postgres
 
-    def execute(self, query: str, params: tuple[Any, ...] = ()):  # noqa: ANN001
-        if self.is_postgres:
-            query = query.replace("?", "%s")
-        return self.raw.execute(query, params)
 
-    def commit(self) -> None:
-        self.raw.commit()
-
-    def rollback(self) -> None:
-        self.raw.rollback()
-
-    def close(self) -> None:
-        self.raw.close()
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc, tb):
-        if exc_type is not None:
-            try:
-                self.rollback()
-            except Exception:
-                pass
-        self.close()
-        return False
 
 
 def write_backup_xlsx() -> None:
@@ -443,215 +410,9 @@ def is_admin_allowed_form() -> bool:
     return token == ADMIN_TOKEN
 
 
-@app.get("/")
-def index() -> str:
-    sucesso = request.args.get("sucesso") == "1"
-    erro = request.args.get("erro")
-    hoje = date.today().isoformat()
-    return render_template(
-        "index.html",
-        turmas=TURMAS,
-        intencoes=INTENCOES,
-        sucesso=sucesso,
-        erro=erro,
-        hoje=hoje,
-    )
 
 
-@app.get("/aluno")
-def buscar_aluno():
-    matricula = request.args.get("matricula", "").strip()
-    if not matricula:
-        return jsonify({"ok": False, "erro": "Matrícula não informada."}), 400
 
-    with get_conn() as conn:
-        aluno = conn.execute(
-            """
-            SELECT nome, matricula, turma
-            FROM alunos
-            WHERE matricula = ?
-            """,
-            (matricula,),
-        ).fetchone()
-
-    if not aluno:
-        return jsonify({"ok": False, "erro": "Matrícula não encontrada."}), 404
-
-    return jsonify(
-        {
-            "ok": True,
-            "nome": aluno["nome"],
-            "matricula": aluno["matricula"],
-            "turma": aluno["turma"],
-        }
-    )
-
-
-@app.post("/enviar")
-def enviar():
-    nome = request.form.get("nome", "").strip()
-    turma = request.form.get("turma", "").strip()
-    data_referencia = request.form.get("data_almoco", "").strip()
-    dias_raw = request.form.getlist("dias")
-    dias_marcados: list[str] = []
-    for raw in dias_raw:
-        normalizado = raw.replace(";", ",").replace(" ", ",")
-        partes = [item.strip().lower() for item in normalizado.split(",") if item.strip()]
-        dias_marcados.extend(partes)
-    dias_marcados = list(dict.fromkeys(dias_marcados))
-
-    if not nome:
-        return redirect(url_for("index", erro="Informe seu nome."))
-    if turma not in TURMAS:
-        return redirect(url_for("index", erro="Selecione uma turma válida."))
-
-    matricula = f"AUTO::{turma}::{nome}".upper()
-
-    if not dias_marcados:
-        return redirect(url_for("index", erro="Marque pelo menos um dia da semana."))
-    if any(item not in DIAS_SEMANA for item in dias_marcados):
-        return redirect(url_for("index", erro="Seleção de dias inválida."))
-
-    if data_referencia:
-        try:
-            data_ref = parse_iso_date(data_referencia)
-        except ValueError:
-            return redirect(url_for("index", erro="Informe uma data válida."))
-    else:
-        data_ref = date.today()
-
-    segunda = week_start(data_ref)
-    datas_semana = {
-        "seg": segunda,
-        "ter": segunda + timedelta(days=1),
-        "qua": segunda + timedelta(days=2),
-        "qui": segunda + timedelta(days=3),
-        "sex": segunda + timedelta(days=4),
-    }
-
-    with get_conn() as conn:
-        print(f"[ALMOCO] Inserindo aluno: {matricula}, {nome}, {turma}")
-        conn.execute(
-            """
-            INSERT INTO alunos (matricula, nome, turma)
-            VALUES (?, ?, ?)
-            ON CONFLICT(matricula)
-            DO UPDATE SET
-                nome = excluded.nome,
-                turma = excluded.turma,
-                atualizado_em = CURRENT_TIMESTAMP
-            """,
-            (matricula, nome, turma),
-        )
-
-        for dia, data_almoco in datas_semana.items():
-            intencao = "SIM" if dia in dias_marcados else "NAO"
-            print(f"[ALMOCO] Inserindo resposta: nome={nome}, matricula={matricula}, turma={turma}, data_almoco={data_almoco}, intencao={intencao}")
-            try:
-                conn.execute(
-                    """
-                    INSERT INTO respostas (nome, matricula, turma, data_almoco, intencao)
-                    VALUES (?, ?, ?, ?, ?)
-                    ON CONFLICT(matricula, data_almoco)
-                    DO UPDATE SET
-                        nome = excluded.nome,
-                        turma = excluded.turma,
-                        intencao = excluded.intencao,
-                        criado_em = CURRENT_TIMESTAMP
-                    """,
-                    (nome, matricula, turma, data_almoco.isoformat(), intencao),
-                )
-                print("[ALMOCO] Resposta inserida com sucesso.")
-            except Exception as e:
-                print(f"[ALMOCO] ERRO ao inserir resposta: {e}")
-        conn.commit()
-
-    write_backup_xlsx()
-
-    return redirect(url_for("index", sucesso=1))
-
-
-@app.get("/admin")
-def admin() -> str:
-    if not is_admin_allowed():
-        abort(403, "Acesso negado. Informe um token válido na URL.")
-
-    data_filtro = request.args.get("data") or date.today().isoformat()
-    try:
-        data_base = parse_iso_date(data_filtro)
-    except ValueError:
-        data_base = date.today()
-        data_filtro = data_base.isoformat()
-
-    segunda = week_start(data_base)
-    sexta = segunda + timedelta(days=4)
-    periodo = request.args.get("periodo", "semana").strip().lower()
-    if periodo not in {"semana", "mes", "ano"}:
-        periodo = "semana"
-
-    periodo_inicio, periodo_fim, periodo_label = period_bounds(data_base, periodo)
-
-    with get_conn() as conn:
-        resumo_rows = conn.execute(
-            """
-            SELECT turma,
-                   SUM(CASE WHEN intencao = 'SIM' THEN 1 ELSE 0 END) AS sim,
-                   SUM(CASE WHEN intencao = 'NAO' THEN 1 ELSE 0 END) AS nao,
-                 SUM(CASE WHEN intencao = 'SIM' THEN 1 ELSE 0 END) AS total
-            FROM respostas
-            WHERE data_almoco = ?
-            GROUP BY turma
-            ORDER BY turma
-            """,
-            (data_filtro,),
-        ).fetchall()
-
-        respostas_semana_rows = conn.execute(
-            """
-            SELECT nome, matricula, turma, data_almoco, intencao
-            FROM respostas
-            WHERE data_almoco BETWEEN ? AND ?
-            ORDER BY turma, nome, data_almoco
-            """,
-            (segunda.isoformat(), sexta.isoformat()),
-        ).fetchall()
-
-        relatorio_periodo_rows = conn.execute(
-            """
-            SELECT data_almoco,
-                   SUM(CASE WHEN intencao = 'SIM' THEN 1 ELSE 0 END) AS sim,
-                   SUM(CASE WHEN intencao = 'NAO' THEN 1 ELSE 0 END) AS nao
-            FROM respostas
-            WHERE data_almoco BETWEEN ? AND ?
-            GROUP BY data_almoco
-            ORDER BY data_almoco
-            """,
-            (periodo_inicio.isoformat(), periodo_fim.isoformat()),
-        ).fetchall()
-
-        total_semana_periodo = conn.execute(
-            """
-            SELECT COALESCE(SUM(CASE WHEN intencao = 'SIM' THEN 1 ELSE 0 END), 0) AS total
-            FROM respostas
-            WHERE data_almoco BETWEEN ? AND ?
-            """,
-            (segunda.isoformat(), sexta.isoformat()),
-        ).fetchone()["total"]
-
-        mes_inicio, mes_fim = month_bounds(data_base)
-        total_mes_periodo = conn.execute(
-            """
-            SELECT COALESCE(SUM(CASE WHEN intencao = 'SIM' THEN 1 ELSE 0 END), 0) AS total
-            FROM respostas
-            WHERE data_almoco BETWEEN ? AND ?
-            """,
-            (mes_inicio.isoformat(), mes_fim.isoformat()),
-        ).fetchone()["total"]
-
-        ano_inicio, ano_fim = year_bounds(data_base)
-        total_ano_periodo = conn.execute(
-            """
-            SELECT COALESCE(SUM(CASE WHEN intencao = 'SIM' THEN 1 ELSE 0 END), 0) AS total
             FROM respostas
             WHERE data_almoco BETWEEN ? AND ?
             """,

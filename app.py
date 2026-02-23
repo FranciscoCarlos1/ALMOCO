@@ -1,6 +1,9 @@
 import csv
 import os
 import re
+from migrations import run_migrations
+
+run_migrations()
 from datetime import date, datetime, timedelta
 from flask import Flask, Response, abort, jsonify, redirect, render_template, request, url_for, send_file
 from io import BytesIO
@@ -121,7 +124,7 @@ def prune_old_backups(max_backups: int) -> None:
 
 def get_conn() -> DBConnection:
     if USE_POSTGRES:
-        logging.info(f"[ALMOCO] Usando Postgres: {DATABASE_URL}")
+        logging.info(f"[ALMOCO] Usando Postgres: postgresql://neondb_owner:npg_8pec2mvaJqfM@ep-royal-hill-aigd1y0z-pooler.c-4.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=required")}")
         if pg_connect is None or dict_row is None:
             raise RuntimeError("psycopg não instalado. Adicione 'psycopg[binary]' no requirements.")
         conn = pg_connect(DATABASE_URL, row_factory=dict_row)

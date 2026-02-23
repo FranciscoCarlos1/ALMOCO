@@ -46,6 +46,8 @@ from routes_admin import bp_admin
 app.register_blueprint(bp_main)
 app.register_blueprint(bp_admin)
 
+
+
 # ------------------------------------------------
 # HEALTHCHECK COMPATÍVEL COM POSTGRES
 # ------------------------------------------------

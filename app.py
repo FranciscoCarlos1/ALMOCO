@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import csv
 import os
 import re
@@ -12,6 +10,8 @@ from urllib.request import urlopen
 
 from openpyxl import Workbook, load_workbook
 from flask import Flask, Response, abort, jsonify, redirect, render_template, request, url_for
+import logging
+logging.basicConfig(level=logging.INFO)
 try:
     from psycopg import connect as pg_connect
     from psycopg.rows import dict_row
@@ -158,11 +158,13 @@ def prune_old_backups(max_backups: int) -> None:
 
 def get_conn() -> DBConnection:
     if USE_POSTGRES:
+        logging.info(f"[ALMOCO] Usando Postgres: {DATABASE_URL}")
         if pg_connect is None or dict_row is None:
             raise RuntimeError("psycopg não instalado. Adicione 'psycopg[binary]' no requirements.")
         conn = pg_connect(DATABASE_URL, row_factory=dict_row)
         return DBConnection(conn, is_postgres=True)
 
+    logging.info(f"[ALMOCO] Usando SQLite: {DB_PATH}")
     DB_DIR.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row

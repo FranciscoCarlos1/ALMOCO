@@ -3,13 +3,9 @@ import os
 import re
 import sqlite3
 from datetime import date, datetime, timedelta
-from io import BytesIO, StringIO
-from pathlib import Path
-from typing import Any
-from urllib.request import urlopen
-
-from openpyxl import Workbook, load_workbook
-from flask import Flask, Response, abort, jsonify, redirect, render_template, request, url_for
+from flask import Flask, Response, abort, jsonify, redirect, render_template, request, url_for, send_file
+from io import BytesIO
+from openpyxl import Workbook
 import logging
 logging.basicConfig(level=logging.INFO)
 try:
@@ -1527,6 +1523,26 @@ def export_quadro_pdf() -> Response:
         mimetype="application/pdf",
         headers={"Content-Disposition": f"attachment; filename=quadro_semanal_{segunda.isoformat()}_{sexta.isoformat()}.pdf"},
     )
+
+
+@app.get("/health_db")
+def health_db():
+    """Endpoint de healthcheck para mostrar contagem de registros das tabelas principais."""
+    import logging
+    from flask import jsonify
+    with get_conn() as conn:
+        try:
+            alunos = conn.execute("SELECT COUNT(*) FROM alunos").fetchone()[0]
+            respostas = conn.execute("SELECT COUNT(*) FROM respostas").fetchone()[0]
+            quadro = conn.execute("SELECT COUNT(*) FROM quadro_importado").fetchone()[0]
+            return jsonify({
+                "alunos": alunos,
+                "respostas": respostas,
+                "quadro_importado": quadro
+            })
+        except Exception as e:
+            logging.error(f"[ALMOCO] ERRO health_db: {e}")
+            return jsonify({"erro": str(e)}), 500
 
 
 init_db()

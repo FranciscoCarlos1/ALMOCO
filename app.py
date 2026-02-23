@@ -53,20 +53,26 @@ app.register_blueprint(bp_admin)
 def health_db():
     try:
         with get_conn() as conn:
-            alunos = conn.execute(
+            alunos_row = conn.execute(
                 "SELECT COUNT(*) as total FROM alunos"
-            ).fetchone()["total"]
+            ).fetchone()
 
-            respostas = conn.execute(
+            respostas_row = conn.execute(
                 "SELECT COUNT(*) as total FROM respostas"
-            ).fetchone()["total"]
+            ).fetchone()
 
-            quadro = conn.execute(
+            quadro_row = conn.execute(
                 "SELECT COUNT(*) as total FROM quadro_importado"
-            ).fetchone()["total"]
+            ).fetchone()
+
+            # Compatível com dict ou tuple
+            alunos = alunos_row["total"] if isinstance(alunos_row, dict) else alunos_row[0]
+            respostas = respostas_row["total"] if isinstance(respostas_row, dict) else respostas_row[0]
+            quadro = quadro_row["total"] if isinstance(quadro_row, dict) else quadro_row[0]
 
         return jsonify({
             "status": "ok",
+            "database": "postgres" if os.getenv("DATABASE_URL") else "sqlite",
             "alunos": alunos,
             "respostas": respostas,
             "quadro_importado": quadro

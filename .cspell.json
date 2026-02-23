@@ -1,0 +1,42 @@
+{
+  "version": "0.2",
+  "language": "pt-BR",
+  "words": [
+    "Almoço",
+    "Intenção",
+    "importado",
+    "importada",
+    "alunos",
+    "Almoco",
+    "Painel",
+    "Catarinense",
+    "Instituto",
+    "Lista",
+    "quadro_importado",
+    "atualizado_em",
+    "matricula",
+    "turma",
+    "respostas",
+    "criado_em",
+    "intencao",
+    "data_almoco",
+    "servidores",
+    "TURMAS",
+    "TURMAS_LABEL",
+    "TURMAS_ORDEM_QUADRO",
+    "DIAS_SEMANA",
+    "ADMIN_TOKEN"
+  ],
+  "ignorePaths": [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/build/**",
+    "**/.git/**",
+    "**/.venv/**",
+    "**/env/**",
+    "**/venv/**",
+    "**/migrations/**",
+    "**/static/**",
+    "**/templates/**"
+  ]
+}

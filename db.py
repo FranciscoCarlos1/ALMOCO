@@ -63,3 +63,17 @@ def get_conn() -> DBConnection:
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return DBConnection(conn, is_postgres=False)
+
+# LOAD DATABASE
+#    FROM sqlite:///caminho/para/almoco.db
+#    INTO postgresql://postgres:[YOUR-PASSWORD]@db.yiggqkuozogziwdzuppe.supabase.co:5432/postgres
+#
+# WITH include no drop, create tables, create indexes, reset sequences, data only
+#
+# SET work_mem to '16MB', maintenance_work_mem to '512 MB';
+#
+# CAST type datetime to timestamptz using zero-dates-to-null,
+#      type date to date using zero-dates-to-null;
+#
+# BEFORE LOAD DO
+#    $$ drop schema if exists public cascade; create schema public; $$;

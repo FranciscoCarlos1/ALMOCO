@@ -15,6 +15,7 @@ DATA_DIR_ENV = os.getenv("ALMOCO_DATA_DIR")
 DB_DIR = Path(DATA_DIR_ENV) if DATA_DIR_ENV else BASE_DIR / "data"
 DB_PATH = DB_DIR / "almoco.db"
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
+USE_POSTGRES = DATABASE_URL.startswith("postgresql://")
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = "postgresql://" + DATABASE_URL[len("postgres://"):]
 USE_POSTGRES = DATABASE_URL.startswith("postgresql://")

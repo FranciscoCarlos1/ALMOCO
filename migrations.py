@@ -27,6 +27,35 @@ MIGRATIONS = {
     """,
     6: """
         ALTER TABLE cardapios ADD COLUMN imagem_mime TEXT;
+    """,
+    7: """
+        CREATE TABLE IF NOT EXISTS alunos (
+            matricula TEXT PRIMARY KEY,
+            nome TEXT NOT NULL,
+            turma TEXT NOT NULL,
+            atualizado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+    """,
+    8: """
+        CREATE TABLE IF NOT EXISTS respostas (
+            id BIGSERIAL PRIMARY KEY,
+            nome TEXT NOT NULL,
+            matricula TEXT NOT NULL,
+            turma TEXT NOT NULL,
+            data_almoco DATE NOT NULL,
+            intencao TEXT NOT NULL CHECK (intencao IN ('SIM', 'NAO')),
+            criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(matricula, data_almoco)
+        );
+    """,
+    9: """
+        CREATE TABLE IF NOT EXISTS quadro_importado (
+            turma TEXT NOT NULL,
+            data_almoco DATE NOT NULL,
+            sim INTEGER NOT NULL DEFAULT 0,
+            atualizado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (turma, data_almoco)
+        );
     """
 }
 

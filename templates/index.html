@@ -69,7 +69,7 @@
       <div class="alert err">{{ erro }}</div>
       {% endif %}
 
-      <form action="/enviar" method="post">
+      <form action="{{ url_for('main.enviar') }}" method="post">
         <label for="nome">Nome completo</label>
         <input id="nome" name="nome" type="text" required />
 

@@ -1,7 +1,7 @@
 import os
 
 from flask import Blueprint, render_template, request, abort, redirect, url_for
-from datetime import date
+from datetime import date, datetime, timedelta
 
 from db import get_conn
 
@@ -16,12 +16,132 @@ TURMAS = [
     "TST I", "TST II", "TST III", "SERVIDORES"
 ]
 
+
+def parse_iso_date(value: str) -> date:
+    return datetime.strptime(value, "%Y-%m-%d").date()
+
+
+def week_start(given_date: date) -> date:
+    return given_date - timedelta(days=given_date.weekday())
+
+
+def month_bounds(given_date: date) -> tuple[date, date]:
+    inicio = given_date.replace(day=1)
+    if given_date.month == 12:
+        proximo = date(given_date.year + 1, 1, 1)
+    else:
+        proximo = date(given_date.year, given_date.month + 1, 1)
+    return inicio, proximo - timedelta(days=1)
+
+
+def year_bounds(given_date: date) -> tuple[date, date]:
+    return date(given_date.year, 1, 1), date(given_date.year, 12, 31)
+
+
+def period_bounds(given_date: date, periodo: str) -> tuple[date, date, str]:
+    if periodo == "mes":
+        inicio, fim = month_bounds(given_date)
+        return inicio, fim, "Mês"
+    if periodo == "ano":
+        inicio, fim = year_bounds(given_date)
+        return inicio, fim, "Ano"
+    segunda = week_start(given_date)
+    sexta = segunda + timedelta(days=4)
+    return segunda, sexta, "Semana"
+
+
+def build_quadro_semana(conn, segunda: date, sexta: date) -> tuple[dict[str, int], list[dict[str, int | str]], int]:
+    turma_semana_rows = conn.execute(
+        """
+        SELECT turma,
+               data_almoco,
+               SUM(CASE WHEN intencao = 'SIM' THEN 1 ELSE 0 END) AS sim
+        FROM respostas
+        WHERE data_almoco BETWEEN ? AND ?
+        GROUP BY turma, data_almoco
+        ORDER BY turma, data_almoco
+        """,
+        (segunda.isoformat(), sexta.isoformat()),
+    ).fetchall()
+
+    semana_sim: dict[str, int] = {"seg": 0, "ter": 0, "qua": 0, "qui": 0, "sex": 0}
+    week_map = {
+        segunda.isoformat(): "seg",
+        (segunda + timedelta(days=1)).isoformat(): "ter",
+        (segunda + timedelta(days=2)).isoformat(): "qua",
+        (segunda + timedelta(days=3)).isoformat(): "qui",
+        (segunda + timedelta(days=4)).isoformat(): "sex",
+    }
+    turma_semana = {
+        turma: {"seg": 0, "ter": 0, "qua": 0, "qui": 0, "sex": 0, "total": 0}
+        for turma in TURMAS
+    }
+
+    for row in turma_semana_rows:
+        turma = row["turma"]
+        dia = week_map.get(str(row["data_almoco"]))
+        if turma not in turma_semana or not dia:
+            continue
+        turma_semana[turma][dia] = row["sim"] or 0
+
+    quadro_importado_rows = conn.execute(
+        """
+        SELECT turma, data_almoco, sim
+        FROM quadro_importado
+        WHERE data_almoco BETWEEN ? AND ?
+        """,
+        (segunda.isoformat(), sexta.isoformat()),
+    ).fetchall()
+
+    for row in quadro_importado_rows:
+        turma = row["turma"]
+        dia = week_map.get(str(row["data_almoco"]))
+        if turma not in turma_semana or not dia:
+            continue
+        turma_semana[turma][dia] = max(turma_semana[turma][dia], max(0, int(row["sim"] or 0)))
+
+    for turma in TURMAS:
+        item = turma_semana[turma]
+        item["total"] = item["seg"] + item["ter"] + item["qua"] + item["qui"] + item["sex"]
+        for dia in semana_sim:
+            semana_sim[dia] += item[dia]
+
+    quadro_rows = []
+    for idx, turma in enumerate(TURMAS, start=1):
+        item = turma_semana[turma]
+        quadro_rows.append(
+            {
+                "ordem": idx,
+                "turma_nome": turma,
+                "seg": item["seg"],
+                "ter": item["ter"],
+                "qua": item["qua"],
+                "qui": item["qui"],
+                "sex": item["sex"],
+                "total": item["total"],
+            }
+        )
+
+    return semana_sim, quadro_rows, sum(semana_sim.values())
+
 @bp_admin.route("/admin")
 def admin():
     token = request.args.get("token", "")
     if token != ADMIN_TOKEN:
         abort(403, "Acesso negado. Informe um token válido na URL.")
     data_filtro = request.args.get("data") or date.today().isoformat()
+    try:
+        data_base = parse_iso_date(data_filtro)
+    except ValueError:
+        data_base = date.today()
+        data_filtro = data_base.isoformat()
+
+    segunda = week_start(data_base)
+    sexta = segunda + timedelta(days=4)
+    periodo = request.args.get("periodo", "semana").strip().lower()
+    if periodo not in {"semana", "mes", "ano"}:
+        periodo = "semana"
+    periodo_inicio, periodo_fim, periodo_label = period_bounds(data_base, periodo)
     cardapio_salvo = request.args.get("cardapio_salvo") == "1"
 
     with get_conn() as conn:
@@ -33,13 +153,125 @@ def admin():
             """,
             (data_filtro,),
         ).fetchone()
+        resumo_rows = conn.execute(
+            """
+            SELECT turma,
+                   SUM(CASE WHEN intencao = 'SIM' THEN 1 ELSE 0 END) AS sim,
+                   SUM(CASE WHEN intencao = 'NAO' THEN 1 ELSE 0 END) AS nao,
+                   SUM(CASE WHEN intencao = 'SIM' THEN 1 ELSE 0 END) AS total
+            FROM respostas
+            WHERE data_almoco = ?
+            GROUP BY turma
+            ORDER BY turma
+            """,
+            (data_filtro,),
+        ).fetchall()
+        respostas_semana_rows = conn.execute(
+            """
+            SELECT nome, matricula, turma, data_almoco, intencao
+            FROM respostas
+            WHERE data_almoco BETWEEN ? AND ?
+            ORDER BY turma, nome, data_almoco
+            """,
+            (segunda.isoformat(), sexta.isoformat()),
+        ).fetchall()
+        relatorio_periodo_rows = conn.execute(
+            """
+            SELECT data_almoco,
+                   SUM(CASE WHEN intencao = 'SIM' THEN 1 ELSE 0 END) AS sim,
+                   SUM(CASE WHEN intencao = 'NAO' THEN 1 ELSE 0 END) AS nao
+            FROM respostas
+            WHERE data_almoco BETWEEN ? AND ?
+            GROUP BY data_almoco
+            ORDER BY data_almoco
+            """,
+            (periodo_inicio.isoformat(), periodo_fim.isoformat()),
+        ).fetchall()
+        total_semana_periodo = conn.execute(
+            """
+            SELECT COALESCE(SUM(CASE WHEN intencao = 'SIM' THEN 1 ELSE 0 END), 0) AS total
+            FROM respostas
+            WHERE data_almoco BETWEEN ? AND ?
+            """,
+            (segunda.isoformat(), sexta.isoformat()),
+        ).fetchone()["total"]
+        mes_inicio, mes_fim = month_bounds(data_base)
+        total_mes_periodo = conn.execute(
+            """
+            SELECT COALESCE(SUM(CASE WHEN intencao = 'SIM' THEN 1 ELSE 0 END), 0) AS total
+            FROM respostas
+            WHERE data_almoco BETWEEN ? AND ?
+            """,
+            (mes_inicio.isoformat(), mes_fim.isoformat()),
+        ).fetchone()["total"]
+        ano_inicio, ano_fim = year_bounds(data_base)
+        total_ano_periodo = conn.execute(
+            """
+            SELECT COALESCE(SUM(CASE WHEN intencao = 'SIM' THEN 1 ELSE 0 END), 0) AS total
+            FROM respostas
+            WHERE data_almoco BETWEEN ? AND ?
+            """,
+            (ano_inicio.isoformat(), ano_fim.isoformat()),
+        ).fetchone()["total"]
+        semana_sim, quadro_rows, total_semana_geral = build_quadro_semana(conn, segunda, sexta)
+
+    resumo = {turma: {"sim": 0, "nao": 0, "total": 0} for turma in TURMAS}
+    for row in resumo_rows:
+        resumo[row["turma"]] = {
+            "sim": row["sim"] or 0,
+            "nao": row["nao"] or 0,
+            "total": row["total"] or 0,
+        }
+
+    total_sim = sum(item["sim"] for item in resumo.values())
+    total_nao = sum(item["nao"] for item in resumo.values())
+    total_geral = total_sim
+
+    respostas_por_pessoa: dict[str, dict[str, str | dict[str, bool]]] = {}
+    week_map_respostas = {
+        segunda.isoformat(): "seg",
+        (segunda + timedelta(days=1)).isoformat(): "ter",
+        (segunda + timedelta(days=2)).isoformat(): "qua",
+        (segunda + timedelta(days=3)).isoformat(): "qui",
+        (segunda + timedelta(days=4)).isoformat(): "sex",
+    }
+    for row in respostas_semana_rows:
+        matricula = row["matricula"]
+        if matricula not in respostas_por_pessoa:
+            respostas_por_pessoa[matricula] = {
+                "nome": row["nome"],
+                "turma": row["turma"],
+                "dias": {"seg": False, "ter": False, "qua": False, "qui": False, "sex": False},
+            }
+        dia = week_map_respostas.get(str(row["data_almoco"]))
+        if dia and row["intencao"] == "SIM":
+            respostas_por_pessoa[matricula]["dias"][dia] = True
+
+    dias_label = {"seg": "Seg", "ter": "Ter", "qua": "Qua", "qui": "Qui", "sex": "Sex"}
+    respostas = []
+    for item in sorted(respostas_por_pessoa.values(), key=lambda x: (x["turma"], x["nome"])):
+        dias = item["dias"]
+        checks = [f"{dias_label[dia]} ✅" for dia in ["seg", "ter", "qua", "qui", "sex"] if dias[dia]]
+        respostas.append(
+            {
+                "nome": item["nome"],
+                "turma": item["turma"],
+                "intencao": " | ".join(checks) if checks else "Sem check na semana",
+            }
+        )
+
+    total_periodo_sim = 0
+    total_periodo_nao = 0
+    for row in relatorio_periodo_rows:
+        total_periodo_sim += row["sim"] or 0
+        total_periodo_nao += row["nao"] or 0
 
     return render_template(
         "admin.html",
-        resumo={},
+        resumo=resumo,
         token=token,
         data_filtro=data_filtro,
-        periodo=request.args.get("periodo", "semana"),
+        periodo=periodo,
         importado=False,
         import_error=None,
         importado_quadro=False,
@@ -49,23 +281,23 @@ def admin():
         backup_restore_error=None,
         backup_manual=False,
         backup_manual_error=None,
-        total_sim=0,
-        total_nao=0,
-        total_geral=0,
-        periodo_label="Semana",
-        periodo_inicio=data_filtro,
-        periodo_fim=data_filtro,
-        total_semana_periodo=0,
-        total_mes_periodo=0,
-        total_ano_periodo=0,
-        total_periodo_sim=0,
-        total_periodo_nao=0,
-        semana_inicio=data_filtro,
-        semana_fim=data_filtro,
-        quadro_rows=[],
-        semana_sim={"seg": 0, "ter": 0, "qua": 0, "qui": 0, "sex": 0},
-        total_semana_geral=0,
-        respostas=[],
+        total_sim=total_sim,
+        total_nao=total_nao,
+        total_geral=total_geral,
+        periodo_label=periodo_label,
+        periodo_inicio=periodo_inicio.isoformat(),
+        periodo_fim=periodo_fim.isoformat(),
+        total_semana_periodo=total_semana_periodo,
+        total_mes_periodo=total_mes_periodo,
+        total_ano_periodo=total_ano_periodo,
+        total_periodo_sim=total_periodo_sim,
+        total_periodo_nao=total_periodo_nao,
+        semana_inicio=segunda.isoformat(),
+        semana_fim=sexta.isoformat(),
+        quadro_rows=quadro_rows,
+        semana_sim=semana_sim,
+        total_semana_geral=total_semana_geral,
+        respostas=respostas,
         cardapio_texto=cardapio["descricao"] if cardapio else "",
         cardapio_salvo=cardapio_salvo,
         cardapio_imagem=data_filtro if cardapio and cardapio["imagem_blob"] else None,

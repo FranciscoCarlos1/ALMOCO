@@ -534,7 +534,11 @@ def export_quadro_pdf() -> Response:
 
     respostas_table_data = [["Nome", "Turma", "Intenção (dias com check)"]]
     for row in respostas:
-        respostas_table_data.append([row["nome"], row["turma"], row["intencao"]])
+        respostas_table_data.append([
+            row["nome"],
+            row["turma"],
+            row["intencao"].replace("✅", "OK"),
+        ])
     if len(respostas_table_data) == 1:
         respostas_table_data.append(["Sem respostas na semana", "-", "-"])
 

@@ -475,6 +475,7 @@ def export_quadro_pdf() -> Response:
     sexta = segunda + timedelta(days=4)
     with get_conn() as conn:
         semana_sim, quadro_rows, total_semana_geral = build_quadro_semana(conn, segunda, sexta)
+        respostas = build_respostas_semana(conn, segunda, sexta)
 
     pdf_buffer = BytesIO()
     document = SimpleDocTemplate(pdf_buffer, pagesize=landscape(A4), leftMargin=24, rightMargin=24, topMargin=24, bottomMargin=24)

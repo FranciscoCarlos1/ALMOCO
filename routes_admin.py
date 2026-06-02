@@ -1,11 +1,21 @@
+import csv
 import os
+from io import BytesIO, StringIO
+from pathlib import Path
+from urllib.request import urlopen
 
-from flask import Blueprint, render_template, request, abort, redirect, url_for
+from flask import Blueprint, render_template, request, abort, redirect, url_for, Response
 from datetime import date, datetime, timedelta
+from openpyxl import Workbook
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4, landscape
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.platypus import Image as RLImage, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from db import get_conn
 
 bp_admin = Blueprint('admin', __name__)
+BASE_DIR = Path(__file__).resolve().parent
 
 ADMIN_TOKEN = os.getenv("ALMOCO_ADMIN_TOKEN", "ifc-sbs")
 ALLOWED_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
@@ -336,6 +346,186 @@ def _salvar_imagem_cardapio(arquivo) -> tuple[bytes, str]:
         ".gif": "image/gif",
     }[extensao]
     return arquivo.read(), mime_type
+
+
+@bp_admin.get("/export.csv")
+def export_csv() -> Response:
+    token = request.args.get("token", "")
+    _validar_token(token)
+
+    data_filtro = request.args.get("data") or date.today().isoformat()
+    with get_conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT nome, matricula, turma, data_almoco, intencao, criado_em
+            FROM respostas
+            WHERE data_almoco = ?
+            ORDER BY turma, nome
+            """,
+            (data_filtro,),
+        ).fetchall()
+
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["nome", "matricula", "turma", "data_almoco", "intencao", "criado_em"])
+    for row in rows:
+        writer.writerow([row["nome"], row["matricula"], row["turma"], row["data_almoco"], row["intencao"], row["criado_em"]])
+
+    csv_data = output.getvalue()
+    output.close()
+    return Response(
+        csv_data,
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=almoco_{data_filtro}.csv"},
+    )
+
+
+@bp_admin.get("/export_quadro.csv")
+def export_quadro_csv() -> Response:
+    token = request.args.get("token", "")
+    _validar_token(token)
+
+    data_filtro = request.args.get("data") or date.today().isoformat()
+    try:
+        data_base = parse_iso_date(data_filtro)
+    except ValueError:
+        data_base = date.today()
+
+    segunda = week_start(data_base)
+    sexta = segunda + timedelta(days=4)
+    with get_conn() as conn:
+        semana_sim, quadro_rows, total_semana_geral = build_quadro_semana(conn, segunda, sexta)
+
+    output = StringIO()
+    writer = csv.writer(output, delimiter=';')
+    writer.writerow(["#", "Turma", "Seg", "Ter", "Qua", "Qui", "Sex", "Total"])
+    for row in quadro_rows:
+        writer.writerow([row["ordem"], row["turma_nome"], row["seg"], row["ter"], row["qua"], row["qui"], row["sex"], row["total"]])
+    writer.writerow(["", "Total", semana_sim["seg"], semana_sim["ter"], semana_sim["qua"], semana_sim["qui"], semana_sim["sex"], total_semana_geral])
+
+    csv_data = output.getvalue()
+    output.close()
+    return Response(
+        csv_data,
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=quadro_semanal_{segunda.isoformat()}_{sexta.isoformat()}.csv"},
+    )
+
+
+@bp_admin.get("/export_quadro.xlsx")
+def export_quadro_xlsx() -> Response:
+    token = request.args.get("token", "")
+    _validar_token(token)
+
+    data_filtro = request.args.get("data") or date.today().isoformat()
+    try:
+        data_base = parse_iso_date(data_filtro)
+    except ValueError:
+        data_base = date.today()
+
+    segunda = week_start(data_base)
+    sexta = segunda + timedelta(days=4)
+    with get_conn() as conn:
+        semana_sim, quadro_rows, total_semana_geral = build_quadro_semana(conn, segunda, sexta)
+
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "quadro_semanal"
+    sheet.append(["#", "Turma", "Seg", "Ter", "Qua", "Qui", "Sex", "Total"])
+    for row in quadro_rows:
+        sheet.append([row["ordem"], row["turma_nome"], row["seg"], row["ter"], row["qua"], row["qui"], row["sex"], row["total"]])
+    sheet.append(["", "Total", semana_sim["seg"], semana_sim["ter"], semana_sim["qua"], semana_sim["qui"], semana_sim["sex"], total_semana_geral])
+
+    meta = workbook.create_sheet("metadados")
+    meta.append(["campo", "valor"])
+    meta.append(["periodo_inicio", segunda.isoformat()])
+    meta.append(["periodo_fim", sexta.isoformat()])
+    meta.append(["data_referencia", data_filtro])
+    meta.append(["gerado_em", datetime.now().isoformat(timespec="seconds")])
+
+    buffer = BytesIO()
+    workbook.save(buffer)
+    buffer.seek(0)
+    return Response(
+        buffer.getvalue(),
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename=quadro_semanal_{segunda.isoformat()}_{sexta.isoformat()}.xlsx"},
+    )
+
+
+@bp_admin.get("/export_quadro.pdf")
+def export_quadro_pdf() -> Response:
+    token = request.args.get("token", "")
+    _validar_token(token)
+
+    data_filtro = request.args.get("data") or date.today().isoformat()
+    try:
+        data_base = parse_iso_date(data_filtro)
+    except ValueError:
+        data_base = date.today()
+
+    segunda = week_start(data_base)
+    sexta = segunda + timedelta(days=4)
+    with get_conn() as conn:
+        semana_sim, quadro_rows, total_semana_geral = build_quadro_semana(conn, segunda, sexta)
+
+    pdf_buffer = BytesIO()
+    document = SimpleDocTemplate(pdf_buffer, pagesize=landscape(A4), leftMargin=24, rightMargin=24, topMargin=24, bottomMargin=24)
+    styles = getSampleStyleSheet()
+    story = []
+
+    logo_image = None
+    logo_url = request.url_root.rstrip("/") + url_for("static", filename="logo_ifc_horizontal_SaoBentodosul.png")
+    try:
+        with urlopen(logo_url, timeout=5) as response:
+            logo_bytes = response.read()
+        logo_image = RLImage(BytesIO(logo_bytes), width=320, height=105)
+    except Exception:
+        logo_path = BASE_DIR / "static" / "logo_ifc_horizontal_SaoBentodosul.png"
+        if logo_path.exists():
+            try:
+                logo_image = RLImage(str(logo_path), width=320, height=105)
+            except Exception:
+                logo_image = None
+
+    if logo_image is not None:
+        logo_image.hAlign = "CENTER"
+        story.append(logo_image)
+        story.append(Spacer(1, 10))
+
+    story.extend([
+        Paragraph("Quadro semanal por turma (SIM)", styles["Title"]),
+        Spacer(1, 8),
+        Paragraph(f"Semana: {segunda.isoformat()} até {sexta.isoformat()}", styles["Normal"]),
+        Spacer(1, 12),
+    ])
+
+    table_data = [["#", "Turma", "Seg", "Ter", "Qua", "Qui", "Sex", "Total"]]
+    for row in quadro_rows:
+        table_data.append([row["ordem"], row["turma_nome"], row["seg"], row["ter"], row["qua"], row["qui"], row["sex"], row["total"]])
+    table_data.append(["", "Total", semana_sim["seg"], semana_sim["ter"], semana_sim["qua"], semana_sim["qui"], semana_sim["sex"], total_semana_geral])
+
+    table = Table(table_data, colWidths=[28, 310, 55, 55, 55, 55, 55, 70])
+    table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#E8E8E8")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.black),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
+        ("BACKGROUND", (0, -1), (-1, -1), colors.HexColor("#FFF200")),
+        ("ALIGN", (0, 0), (0, -1), "CENTER"),
+        ("ALIGN", (2, 0), (-1, -1), "CENTER"),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("GRID", (0, 0), (-1, -1), 0.8, colors.HexColor("#5F5F5F")),
+    ]))
+    story.append(table)
+    document.build(story)
+    pdf_buffer.seek(0)
+
+    return Response(
+        pdf_buffer.getvalue(),
+        mimetype="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=quadro_semanal_{segunda.isoformat()}_{sexta.isoformat()}.pdf"},
+    )
 
 
 @bp_admin.route("/admin/cardapio", methods=["GET", "POST"])

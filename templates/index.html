@@ -77,17 +77,17 @@
         <select id="turma" name="turma" required>
           <option value="">Selecione...</option>
           {% for turma in turmas %}
-          <option value="{{ turma }}">{{ turma }}</option>
+          <option value="{{ turma }}">{{ 'SERVIDOR' if turma == 'SERVIDORES' else turma }}</option>
           {% endfor %}
         </select>
 
         <label>Marque os dias:</label>
         <div class="dias-group">
-          <label>Seg <input type="checkbox" name="dias" value="seg" /></label>
-          <label>Ter <input type="checkbox" name="dias" value="ter" /></label>
-          <label>Qua <input type="checkbox" name="dias" value="qua" /></label>
-          <label>Qui <input type="checkbox" name="dias" value="qui" /></label>
-          <label>Sex <input type="checkbox" name="dias" value="sex" /></label>
+          <label>Seg <input type="checkbox" name="dias" value="seg" {% if dia_atual == 'seg' %}checked{% endif %} /></label>
+          <label>Ter <input type="checkbox" name="dias" value="ter" {% if dia_atual == 'ter' %}checked{% endif %} /></label>
+          <label>Qua <input type="checkbox" name="dias" value="qua" {% if dia_atual == 'qua' %}checked{% endif %} /></label>
+          <label>Qui <input type="checkbox" name="dias" value="qui" {% if dia_atual == 'qui' %}checked{% endif %} /></label>
+          <label>Sex <input type="checkbox" name="dias" value="sex" {% if dia_atual == 'sex' %}checked{% endif %} /></label>
         </div>
 
         <button type="submit">Enviar resposta</button>

@@ -26,7 +26,9 @@ def week_start(given_date: date) -> date:
 def index():
     sucesso = request.args.get("sucesso") == "1"
     erro = request.args.get("erro")
-    hoje = date.today().isoformat()
+    hoje_data = date.today()
+    hoje = hoje_data.isoformat()
+    dia_atual = DIAS_SEMANA[hoje_data.weekday()] if hoje_data.weekday() < len(DIAS_SEMANA) else None
     with get_conn() as conn:
         cardapio = conn.execute(
             """
@@ -43,6 +45,7 @@ def index():
         sucesso=sucesso,
         erro=erro,
         hoje=hoje,
+        dia_atual=dia_atual,
         cardapio_hoje=cardapio["descricao"] if cardapio else None,
         cardapio_imagem=hoje if cardapio and cardapio["imagem_blob"] else None,
     )

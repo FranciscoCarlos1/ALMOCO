@@ -91,6 +91,12 @@
           <option value="mes" {% if periodo == 'mes' %}selected{% endif %}>Mês</option>
           <option value="ano" {% if periodo == 'ano' %}selected{% endif %}>Ano</option>
         </select>
+        <label for="intencao">Intenção:</label>
+        <select id="intencao" name="intencao">
+          <option value="TODOS" {% if intencao_filtro == 'TODOS' %}selected{% endif %}>Todos</option>
+          <option value="SIM" {% if intencao_filtro == 'SIM' %}selected{% endif %}>SIM</option>
+          <option value="NAO" {% if intencao_filtro == 'NAO' %}selected{% endif %}>NÃO</option>
+        </select>
         <button type="submit">Atualizar</button>
         <a class="btn primary" href="/export.csv?data={{ data_filtro }}&periodo={{ periodo }}&token={{ token }}">Exportar CSV</a>
         <a class="btn primary" href="/export_quadro.csv?data={{ data_filtro }}&token={{ token }}">Exportar quadro semanal (CSV)</a>
@@ -172,6 +178,7 @@
       <div class="split">
         <section>
           <h2>Respostas do dia</h2>
+          <p style="margin: 0 0 10px; color: #555;">Filtro atual: {{ 'Todos' if intencao_filtro == 'TODOS' else intencao_filtro }} | SIM no dia filtrado: <strong>{{ total_sim }}</strong></p>
           <div class="table-wrap">
           <table>
             <thead>
@@ -197,8 +204,8 @@
             </tbody>
             <tfoot>
               <tr class="total-row">
-                <th colspan="2">Total de SIM do dia</th>
-                <th class="center">{{ total_respostas_dia }}</th>
+                <th colspan="2">Total exibido</th>
+                <th class="center">{{ total_respostas_filtradas }}</th>
               </tr>
             </tfoot>
           </table>

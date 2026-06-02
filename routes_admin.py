@@ -186,16 +186,27 @@ def build_respostas_semana(conn, segunda: date, sexta: date) -> list[dict[str, s
     return respostas
 
 
-def build_respostas_dia(conn, data_filtro: str) -> list[dict[str, str]]:
-    rows = conn.execute(
-        """
-        SELECT nome, turma, intencao
-        FROM respostas
-        WHERE data_almoco = ?
-        ORDER BY turma, nome
-        """,
-        (data_filtro,),
-    ).fetchall()
+def build_respostas_dia(conn, data_filtro: str, intencao_filtro: str) -> list[dict[str, str]]:
+    if intencao_filtro in {"SIM", "NAO"}:
+        rows = conn.execute(
+            """
+            SELECT nome, turma, intencao
+            FROM respostas
+            WHERE data_almoco = ? AND intencao = ?
+            ORDER BY turma, nome
+            """,
+            (data_filtro, intencao_filtro),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            """
+            SELECT nome, turma, intencao
+            FROM respostas
+            WHERE data_almoco = ?
+            ORDER BY turma, nome
+            """,
+            (data_filtro,),
+        ).fetchall()
 
     return [
         {
@@ -223,6 +234,9 @@ def admin():
     periodo = request.args.get("periodo", "semana").strip().lower()
     if periodo not in {"dia", "semana", "mes", "ano"}:
         periodo = "semana"
+    intencao_filtro = request.args.get("intencao", "TODOS").strip().upper()
+    if intencao_filtro not in {"TODOS", "SIM", "NAO"}:
+        intencao_filtro = "TODOS"
     periodo_inicio, periodo_fim, periodo_label = period_bounds(data_base, periodo)
     cardapio_salvo = request.args.get("cardapio_salvo") == "1"
 
@@ -286,7 +300,7 @@ def admin():
             """,
             (ano_inicio.isoformat(), ano_fim.isoformat()),
         ).fetchone()["total"]
-        respostas_dia = build_respostas_dia(conn, data_filtro)
+        respostas_dia = build_respostas_dia(conn, data_filtro, intencao_filtro)
 
     resumo = {turma: {"sim": 0, "nao": 0, "total": 0} for turma in TURMAS}
     for row in resumo_rows:
@@ -300,6 +314,7 @@ def admin():
     total_nao = sum(item["nao"] for item in resumo.values())
     total_geral = total_sim
     total_respostas_dia = total_sim
+    total_respostas_filtradas = len(respostas_dia)
 
     quadro_dia_rows = []
     for idx, turma in enumerate(TURMAS, start=1):
@@ -338,6 +353,7 @@ def admin():
         token=token,
         data_filtro=data_filtro,
         periodo=periodo,
+        intencao_filtro=intencao_filtro,
         importado=False,
         import_error=None,
         importado_quadro=False,
@@ -361,6 +377,7 @@ def admin():
         quadro_dia_rows=quadro_dia_rows,
         respostas_dia=respostas_dia,
         total_respostas_dia=total_respostas_dia,
+        total_respostas_filtradas=total_respostas_filtradas,
         relatorio_por_dia=relatorio_por_dia,
         cardapio_texto=cardapio["descricao"] if cardapio else "",
         cardapio_salvo=cardapio_salvo,

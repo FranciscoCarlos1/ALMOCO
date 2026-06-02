@@ -310,7 +310,7 @@ def admin():
                 "turma_nome": turma,
                 "sim": item["sim"],
                 "nao": item["nao"],
-                "total": item["sim"] + item["nao"],
+                "total": item["sim"],
             }
         )
 

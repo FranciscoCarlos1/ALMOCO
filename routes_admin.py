@@ -137,7 +137,7 @@ def build_quadro_semana(conn, segunda: date, sexta: date) -> tuple[dict[str, int
     return semana_sim, quadro_rows, sum(semana_sim.values())
 
 
-def build_respostas_semana(conn, segunda: date, sexta: date) -> list[dict[str, str]]:
+def build_respostas_semana(conn, segunda: date, sexta: date) -> list[dict[str, str | int]]:
     respostas_semana_rows = conn.execute(
         """
         SELECT nome, matricula, turma, data_almoco, intencao
@@ -173,15 +173,38 @@ def build_respostas_semana(conn, segunda: date, sexta: date) -> list[dict[str, s
     for item in sorted(respostas_por_pessoa.values(), key=lambda x: (x["turma"], x["nome"])):
         dias = item["dias"]
         checks = [f"{dias_label[dia]} ✅" for dia in ["seg", "ter", "qua", "qui", "sex"] if dias[dia]]
+        total_checks = len(checks)
         respostas.append(
             {
                 "nome": item["nome"],
                 "turma": item["turma"],
                 "intencao": " | ".join(checks) if checks else "Sem check na semana",
+                "total_checks": total_checks,
             }
         )
 
     return respostas
+
+
+def build_respostas_dia(conn, data_filtro: str) -> list[dict[str, str]]:
+    rows = conn.execute(
+        """
+        SELECT nome, turma, intencao
+        FROM respostas
+        WHERE data_almoco = ?
+        ORDER BY turma, nome
+        """,
+        (data_filtro,),
+    ).fetchall()
+
+    return [
+        {
+            "nome": row["nome"],
+            "turma": row["turma"],
+            "intencao": row["intencao"],
+        }
+        for row in rows
+    ]
 
 @bp_admin.route("/admin")
 def admin():
@@ -263,8 +286,7 @@ def admin():
             """,
             (ano_inicio.isoformat(), ano_fim.isoformat()),
         ).fetchone()["total"]
-        semana_sim, quadro_rows, total_semana_geral = build_quadro_semana(conn, segunda, sexta)
-        respostas = build_respostas_semana(conn, segunda, sexta)
+        respostas_dia = build_respostas_dia(conn, data_filtro)
 
     resumo = {turma: {"sim": 0, "nao": 0, "total": 0} for turma in TURMAS}
     for row in resumo_rows:
@@ -277,6 +299,20 @@ def admin():
     total_sim = sum(item["sim"] for item in resumo.values())
     total_nao = sum(item["nao"] for item in resumo.values())
     total_geral = total_sim
+    total_respostas_dia = total_sim + total_nao
+
+    quadro_dia_rows = []
+    for idx, turma in enumerate(TURMAS, start=1):
+        item = resumo[turma]
+        quadro_dia_rows.append(
+            {
+                "ordem": idx,
+                "turma_nome": turma,
+                "sim": item["sim"],
+                "nao": item["nao"],
+                "total": item["sim"] + item["nao"],
+            }
+        )
 
     total_periodo_sim = 0
     total_periodo_nao = 0
@@ -322,12 +358,9 @@ def admin():
         total_ano_periodo=total_ano_periodo,
         total_periodo_sim=total_periodo_sim,
         total_periodo_nao=total_periodo_nao,
-        semana_inicio=segunda.isoformat(),
-        semana_fim=sexta.isoformat(),
-        quadro_rows=quadro_rows,
-        semana_sim=semana_sim,
-        total_semana_geral=total_semana_geral,
-        respostas=respostas,
+        quadro_dia_rows=quadro_dia_rows,
+        respostas_dia=respostas_dia,
+        total_respostas_dia=total_respostas_dia,
         relatorio_por_dia=relatorio_por_dia,
         cardapio_texto=cardapio["descricao"] if cardapio else "",
         cardapio_salvo=cardapio_salvo,
@@ -548,24 +581,31 @@ def export_quadro_pdf() -> Response:
         Spacer(1, 8),
     ])
 
-    respostas_table_data = [["Nome", "Turma", "Intenção (dias com check)"]]
+    respostas_table_data = [["Nome", "Turma", "Intenção (dias com check)", "Total"]]
     for row in respostas:
         respostas_table_data.append([
             row["nome"],
             row["turma"],
             row["intencao"].replace("✅", "OK"),
+            row["total_checks"],
         ])
     if len(respostas_table_data) == 1:
-        respostas_table_data.append(["Sem respostas na semana", "-", "-"])
+        respostas_table_data.append(["Sem respostas na semana", "-", "-", 0])
 
-    respostas_table = Table(respostas_table_data, colWidths=[300, 120, 320], repeatRows=1)
+    total_checks_respostas = sum(int(row["total_checks"]) for row in respostas)
+    respostas_table_data.append(["Total", "", "", total_checks_respostas])
+
+    respostas_table = Table(respostas_table_data, colWidths=[280, 110, 300, 60], repeatRows=1)
     respostas_table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#F0F3F7")),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.black),
         ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
+        ("BACKGROUND", (0, -1), (-1, -1), colors.HexColor("#FFF200")),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("ALIGN", (-1, 0), (-1, -1), "CENTER"),
         ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#D0D7DE")),
-        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#FAFBFC")]),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -2), [colors.white, colors.HexColor("#FAFBFC")]),
         ("FONTSIZE", (0, 0), (-1, -1), 9),
         ("LEADING", (0, 0), (-1, -1), 11),
     ]))

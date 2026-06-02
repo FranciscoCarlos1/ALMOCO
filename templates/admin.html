@@ -179,35 +179,39 @@
           </tr>
           {% endif %}
         </tbody>
+        {% if relatorio_por_dia %}
+        <tfoot>
+          <tr class="total-row">
+            <th>Total</th>
+            <th class="center">{{ total_periodo_sim }}</th>
+            <th class="center">{{ total_periodo_nao }}</th>
+            <th class="center">{{ total_periodo_sim + total_periodo_nao }}</th>
+          </tr>
+        </tfoot>
+        {% endif %}
       </table>
       </div>
 
-      <h2>Quadro semanal por turma (SIM)</h2>
-      <div>Semana considerada: {{ semana_inicio }} até {{ semana_fim }}</div>
+      <h2>Quadro diário por turma</h2>
+      <div>Data considerada: {{ data_filtro }}</div>
       <div class="table-wrap">
       <table class="quadro">
             <thead>
               <tr>
                 <th class="center" style="width:50px">#</th>
                 <th>Turma</th>
-                <th class="center">Seg</th>
-                <th class="center">Ter</th>
-                <th class="center">Qua</th>
-                <th class="center">Qui</th>
-                <th class="center">Sex</th>
+                <th class="center">SIM</th>
+                <th class="center">NÃO</th>
                 <th class="center" style="width:90px">Total</th>
               </tr>
             </thead>
             <tbody>
-              {% for row in quadro_rows %}
+              {% for row in quadro_dia_rows %}
               <tr>
                 <td class="center">{{ row.ordem }}</td>
                 <td>{{ row.turma_nome }}</td>
-                <td class="center">{{ row.seg }}</td>
-                <td class="center">{{ row.ter }}</td>
-                <td class="center">{{ row.qua }}</td>
-                <td class="center">{{ row.qui }}</td>
-                <td class="center">{{ row.sex }}</td>
+                <td class="center">{{ row.sim }}</td>
+                <td class="center">{{ row.nao }}</td>
                 <td class="center"><strong>{{ row.total }}</strong></td>
               </tr>
               {% endfor %}
@@ -215,12 +219,9 @@
             <tfoot>
               <tr class="total-row">
                 <th class="center" colspan="2">Total</th>
-                <th class="center">{{ semana_sim.seg }}</th>
-                <th class="center">{{ semana_sim.ter }}</th>
-                <th class="center">{{ semana_sim.qua }}</th>
-                <th class="center">{{ semana_sim.qui }}</th>
-                <th class="center">{{ semana_sim.sex }}</th>
-                <th class="center">{{ total_semana_geral }}</th>
+                <th class="center">{{ total_sim }}</th>
+                <th class="center">{{ total_nao }}</th>
+                <th class="center">{{ total_respostas_dia }}</th>
               </tr>
             </tfoot>
           </table>
@@ -228,25 +229,36 @@
 
       <div class="split">
         <section>
-          <h2>Respostas da semana (checks positivos)</h2>
+          <h2>Respostas do dia</h2>
           <div class="table-wrap">
           <table>
             <thead>
               <tr>
                 <th>Nome</th>
                 <th>Turma</th>
-                <th>Intenção (dias com ✅)</th>
+                <th>Intenção</th>
               </tr>
             </thead>
             <tbody>
-              {% for row in respostas %}
+              {% for row in respostas_dia %}
               <tr>
                 <td>{{ row.nome }}</td>
                 <td>{{ row.turma }}</td>
                 <td>{{ row.intencao }}</td>
               </tr>
               {% endfor %}
+              {% if not respostas_dia %}
+              <tr>
+                <td colspan="3" class="center">Sem respostas para a data selecionada.</td>
+              </tr>
+              {% endif %}
             </tbody>
+            <tfoot>
+              <tr class="total-row">
+                <th colspan="2">Total de respostas do dia</th>
+                <th class="center">{{ total_respostas_dia }}</th>
+              </tr>
+            </tfoot>
           </table>
           </div>
         </section>

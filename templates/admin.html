@@ -86,6 +86,7 @@
         <input type="date" id="data" name="data" value="{{ data_filtro }}" />
         <label for="periodo">Relatório:</label>
         <select id="periodo" name="periodo">
+          <option value="dia" {% if periodo == 'dia' %}selected{% endif %}>Dia</option>
           <option value="semana" {% if periodo == 'semana' %}selected{% endif %}>Semana</option>
           <option value="mes" {% if periodo == 'mes' %}selected{% endif %}>Mês</option>
           <option value="ano" {% if periodo == 'ano' %}selected{% endif %}>Ano</option>
@@ -151,6 +152,35 @@
         <div class="card"><strong>SIM no período:</strong> {{ total_periodo_sim }}</div>
         <div class="card"><strong>NÃO no período:</strong> {{ total_periodo_nao }}</div>
       </section>
+
+      <h2>Relatório por dia</h2>
+      <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th class="center">SIM</th>
+            <th class="center">NÃO</th>
+            <th class="center">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in relatorio_por_dia %}
+          <tr>
+            <td>{{ row.data }}</td>
+            <td class="center">{{ row.sim }}</td>
+            <td class="center">{{ row.nao }}</td>
+            <td class="center"><strong>{{ row.total }}</strong></td>
+          </tr>
+          {% endfor %}
+          {% if not relatorio_por_dia %}
+          <tr>
+            <td colspan="4" class="center">Sem registros no período selecionado.</td>
+          </tr>
+          {% endif %}
+        </tbody>
+      </table>
+      </div>
 
       <h2>Quadro semanal por turma (SIM)</h2>
       <div>Semana considerada: {{ semana_inicio }} até {{ semana_fim }}</div>

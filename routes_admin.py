@@ -49,6 +49,8 @@ def year_bounds(given_date: date) -> tuple[date, date]:
 
 
 def period_bounds(given_date: date, periodo: str) -> tuple[date, date, str]:
+    if periodo == "dia":
+        return given_date, given_date, "Dia"
     if periodo == "mes":
         inicio, fim = month_bounds(given_date)
         return inicio, fim, "Mês"
@@ -196,7 +198,7 @@ def admin():
     segunda = week_start(data_base)
     sexta = segunda + timedelta(days=4)
     periodo = request.args.get("periodo", "semana").strip().lower()
-    if periodo not in {"semana", "mes", "ano"}:
+    if periodo not in {"dia", "semana", "mes", "ano"}:
         periodo = "semana"
     periodo_inicio, periodo_fim, periodo_label = period_bounds(data_base, periodo)
     cardapio_salvo = request.args.get("cardapio_salvo") == "1"
@@ -278,9 +280,21 @@ def admin():
 
     total_periodo_sim = 0
     total_periodo_nao = 0
+    relatorio_por_dia = []
     for row in relatorio_periodo_rows:
-        total_periodo_sim += row["sim"] or 0
-        total_periodo_nao += row["nao"] or 0
+        sim = row["sim"] or 0
+        nao = row["nao"] or 0
+        total = sim + nao
+        total_periodo_sim += sim
+        total_periodo_nao += nao
+        relatorio_por_dia.append(
+            {
+                "data": str(row["data_almoco"]),
+                "sim": sim,
+                "nao": nao,
+                "total": total,
+            }
+        )
 
     return render_template(
         "admin.html",
@@ -314,6 +328,7 @@ def admin():
         semana_sim=semana_sim,
         total_semana_geral=total_semana_geral,
         respostas=respostas,
+        relatorio_por_dia=relatorio_por_dia,
         cardapio_texto=cardapio["descricao"] if cardapio else "",
         cardapio_salvo=cardapio_salvo,
         cardapio_imagem=data_filtro if cardapio and cardapio["imagem_blob"] else None,

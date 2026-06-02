@@ -299,7 +299,7 @@ def admin():
     total_sim = sum(item["sim"] for item in resumo.values())
     total_nao = sum(item["nao"] for item in resumo.values())
     total_geral = total_sim
-    total_respostas_dia = total_sim + total_nao
+    total_respostas_dia = total_sim
 
     quadro_dia_rows = []
     for idx, turma in enumerate(TURMAS, start=1):

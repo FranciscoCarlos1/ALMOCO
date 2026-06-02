@@ -23,7 +23,7 @@ MIGRATIONS = {
         ALTER TABLE cardapios ADD COLUMN imagem_path TEXT;
     """,
     5: """
-        ALTER TABLE cardapios ADD COLUMN imagem_blob BLOB;
+        ALTER TABLE cardapios ADD COLUMN imagem_blob BYTEA;
     """,
     6: """
         ALTER TABLE cardapios ADD COLUMN imagem_mime TEXT;

@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Painel de Cardápio</title>
+    <style>
+      * { box-sizing: border-box; }
+      body { font-family: Arial, sans-serif; margin: 0; background: #f4f6f8; }
+      .container { width: min(100% - 24px, 760px); margin: 24px auto; background: #fff; padding: 24px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,.08); }
+      .logo { width: 100%; max-width: 360px; display: block; margin: 0 auto 16px auto; }
+      h1 { margin-top: 0; }
+      p { color: #444; }
+      label { font-weight: 600; display: block; margin-top: 14px; }
+      input, textarea, a.btn, button { border-radius: 8px; border: 1px solid #cfd6dd; box-sizing: border-box; }
+      input, textarea { width: 100%; padding: 10px; margin-top: 6px; }
+      textarea { resize: vertical; min-height: 140px; }
+      .row { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: end; }
+      .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+      .btn, button { padding: 10px 14px; text-decoration: none; color: #111; background: #fff; cursor: pointer; }
+      .btn.primary, button.primary { background: #0b5ed7; border-color: #0b5ed7; color: #fff; }
+      .alert { padding: 10px 12px; border-radius: 8px; margin-top: 12px; }
+      .ok { background: #d1f7de; color: #0b5a2a; }
+      .err { background: #ffd9d9; color: #8f1a1a; }
+      .preview { margin-top: 18px; padding: 14px; border: 1px solid #dce1e7; border-radius: 10px; background: #fafbfc; }
+      .preview img { width: 100%; max-height: 320px; object-fit: cover; border-radius: 10px; margin-top: 12px; }
+      .checkbox { display: flex; gap: 8px; align-items: center; margin-top: 12px; font-weight: 400; }
+      .checkbox input { width: auto; margin: 0; }
+      .hint { color: #666; font-size: .92rem; margin-top: 6px; }
+      @media (max-width: 700px) {
+        .container { width: min(100% - 16px, 760px); margin: 12px auto; padding: 18px 14px; border-radius: 0; }
+        .row { grid-template-columns: 1fr; }
+        .actions { flex-direction: column; }
+        .actions .btn, .actions button { width: 100%; text-align: center; }
+        .logo { max-width: 200px; }
+      }
+      @media (max-width: 420px) {
+        h1 { font-size: 1.35rem; }
+        .preview { padding: 12px; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="container">
+      <img class="logo" src="/static/logo_ifc_horizontal_SaoBentodosul.png" onerror="this.onerror=null;this.src='/static/logo-ifc.svg';" alt="Instituto Federal Catarinense" />
+      <h1>Painel do Cardápio do Dia</h1>
+      <p>Use esta tela apenas para informar o cardápio diário e uma imagem ilustrativa para os alunos.</p>
+
+      {% if cardapio_salvo %}
+      <div class="alert ok">Cardápio salvo com sucesso.</div>
+      {% endif %}
+
+      {% if erro_cardapio %}
+      <div class="alert err">{{ erro_cardapio }}</div>
+      {% endif %}
+
+      <form method="post" action="/admin/cardapio" enctype="multipart/form-data">
+        <input type="hidden" name="token" value="{{ token }}" />
+
+        <div class="row">
+          <div>
+            <label for="data">Data do cardápio</label>
+            <input id="data" name="data" type="date" value="{{ data_filtro }}" required />
+          </div>
+          <div class="actions">
+            <a class="btn" href="/admin?token={{ token }}&data={{ data_filtro }}">Voltar ao painel</a>
+          </div>
+        </div>
+
+        <label for="descricao">Descrição do cardápio</label>
+        <textarea id="descricao" name="descricao" placeholder="Ex.: arroz, feijão, carne assada, salada e fruta.">{{ cardapio_texto }}</textarea>
+        <div class="hint">Você pode salvar só o texto, só a imagem ou os dois juntos.</div>
+
+        <label for="imagem">Imagem ilustrativa</label>
+        <input id="imagem" name="imagem" type="file" accept=".png,.jpg,.jpeg,.webp,.gif" />
+        <div class="hint">Formatos aceitos: PNG, JPG, JPEG, WEBP e GIF.</div>
+
+        {% if cardapio_imagem %}
+        <label class="checkbox"><input type="checkbox" name="remover_imagem" value="1" /> Remover imagem atual</label>
+        {% endif %}
+
+        <div class="actions">
+          <button class="primary" type="submit">Salvar cardápio</button>
+        </div>
+      </form>
+
+      {% if cardapio_texto or cardapio_imagem %}
+      <section class="preview">
+        <strong>Prévia atual</strong>
+        {% if cardapio_texto %}
+        <p style="white-space: pre-line;">{{ cardapio_texto }}</p>
+        {% endif %}
+        {% if cardapio_imagem %}
+        <img src="{{ url_for('main.cardapio_imagem', nome_arquivo=cardapio_imagem) }}" alt="Imagem atual do cardápio" />
+        {% endif %}
+      </section>
+      {% endif %}
+    </main>
+  </body>
+</html>

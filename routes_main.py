@@ -1,6 +1,8 @@
-from flask import Blueprint, render_template, request, redirect, url_for, jsonify, abort
+from pathlib import Path
+
+from flask import Blueprint, render_template, request, redirect, url_for, jsonify, abort, send_file
 from datetime import date
-from db import get_conn
+from db import DB_DIR, get_conn
 
 bp_main = Blueprint('main', __name__)
 
@@ -11,12 +13,22 @@ TURMAS = [
 ]
 INTENCOES = ["SIM", "NAO"]
 DIAS_SEMANA = ["seg", "ter", "qua", "qui", "sex"]
+CARDAPIO_DIR = DB_DIR / "cardapio_imagens"
 
 @bp_main.route("/")
 def index():
     sucesso = request.args.get("sucesso") == "1"
     erro = request.args.get("erro")
     hoje = date.today().isoformat()
+    with get_conn() as conn:
+        cardapio = conn.execute(
+            """
+            SELECT descricao, imagem_path
+            FROM cardapios
+            WHERE data_almoco = ?
+            """,
+            (hoje,),
+        ).fetchone()
     return render_template(
         "index.html",
         turmas=TURMAS,
@@ -24,7 +36,18 @@ def index():
         sucesso=sucesso,
         erro=erro,
         hoje=hoje,
+        cardapio_hoje=cardapio["descricao"] if cardapio else None,
+        cardapio_imagem=cardapio["imagem_path"] if cardapio else None,
     )
+
+
+@bp_main.route("/cardapio/imagens/<path:nome_arquivo>")
+def cardapio_imagem(nome_arquivo: str):
+    caminho = (CARDAPIO_DIR / nome_arquivo).resolve()
+    diretorio = CARDAPIO_DIR.resolve()
+    if diretorio not in caminho.parents or not caminho.is_file():
+        abort(404)
+    return send_file(Path(caminho))
 
 @bp_main.route("/aluno")
 def buscar_aluno():

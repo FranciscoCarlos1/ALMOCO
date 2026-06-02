@@ -11,6 +11,16 @@ MIGRATIONS = {
     """,
     2: """
         ALTER TABLE usuarios ADD COLUMN ativo BOOLEAN DEFAULT TRUE;
+    """,
+    3: """
+        CREATE TABLE IF NOT EXISTS cardapios (
+            data_almoco TEXT PRIMARY KEY,
+            descricao TEXT NOT NULL,
+            atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """,
+    4: """
+        ALTER TABLE cardapios ADD COLUMN imagem_path TEXT;
     """
 }
 

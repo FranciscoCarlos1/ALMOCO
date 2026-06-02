@@ -5,13 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Intenção de Almoço - IFC SBS</title>
     <style>
+      * { box-sizing: border-box; }
       body { font-family: Arial, sans-serif; margin: 0; background: #f4f6f8; }
-      .container { max-width: 620px; margin: 40px auto; background: #fff; padding: 24px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,.08); }
+      .container { width: min(100% - 24px, 620px); margin: 24px auto; background: #fff; padding: 24px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,.08); }
       .logo { width: 100%; max-width: 420px; display: block; margin: 0 auto 16px auto; }
       h1 { margin-top: 0; font-size: 1.5rem; }
       p { color: #444; }
-      label { font-weight: 600; display: block; margin-top: 14px; }
-      input, select { width: 100%; padding: 10px; border: 1px solid #cfd6dd; border-radius: 8px; margin-top: 6px; box-sizing: border-box; }
+      label { font-weight: 600; display: block; margin-top: 14px; min-width: 0; }
+      input, select { width: 100%; padding: 10px; border: 1px solid #cfd6dd; border-radius: 8px; margin-top: 6px; box-sizing: border-box; min-width: 0; }
       .dias-group { margin-top: 10px; display: grid; grid-template-columns: repeat(5, minmax(80px, 1fr)); gap: 8px; }
       .dias-group label { font-weight: 400; margin: 0; display: flex; gap: 4px; align-items: center; }
       .dias-group input[type="checkbox"] { width: auto; margin: 0; }
@@ -22,8 +23,20 @@
       .err { background: #ffd9d9; color: #8f1a1a; }
       .small { font-size: .9rem; color: #666; margin-top: 14px; }
       .hint { margin-top: 8px; font-size: .9rem; color: #555; }
+      .cardapio { margin: 18px 0; padding: 14px 16px; border-radius: 10px; background: #fff7e6; border: 1px solid #f3d08a; }
+      .cardapio h2 { margin: 0 0 8px; font-size: 1.05rem; color: #7a4b00; }
+      .cardapio p { margin: 0; white-space: pre-line; }
+      .cardapio img { width: 100%; margin-top: 12px; border-radius: 10px; object-fit: cover; max-height: 260px; }
       @media (max-width: 600px) {
-        .logo { max-width: 160px; }
+        .container { width: min(100% - 16px, 620px); margin: 12px auto; padding: 18px 14px; border-radius: 0; }
+        .logo { max-width: 180px; }
+        h1 { font-size: 1.3rem; }
+        .dias-group { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .dias-group label { padding: 10px 12px; border: 1px solid #dce1e7; border-radius: 8px; justify-content: space-between; }
+        .cardapio { padding: 12px; }
+      }
+      @media (max-width: 380px) {
+        .dias-group { grid-template-columns: 1fr; }
       }
     </style>
   </head>
@@ -32,6 +45,21 @@
       <img class="logo" src="/static/logo_ifc_horizontal_SaoBentodosul.png" onerror="this.onerror=null;this.src='/static/logo-ifc.svg';" alt="Instituto Federal Catarinense" />
       <h1>Intenção de Almoço - IFC SBS</h1>
       <p>Preencha para informar em quais dias da semana você vai almoçar.</p>
+
+      {% if cardapio_hoje %}
+      <section class="cardapio">
+        <h2>Cardápio de hoje</h2>
+        <p>{{ cardapio_hoje }}</p>
+        {% if cardapio_imagem %}
+        <img src="{{ url_for('main.cardapio_imagem', nome_arquivo=cardapio_imagem) }}" alt="Imagem ilustrativa do cardápio do dia" />
+        {% endif %}
+      </section>
+      {% elif cardapio_imagem %}
+      <section class="cardapio">
+        <h2>Cardápio de hoje</h2>
+        <img src="{{ url_for('main.cardapio_imagem', nome_arquivo=cardapio_imagem) }}" alt="Imagem ilustrativa do cardápio do dia" />
+      </section>
+      {% endif %}
 
       {% if sucesso %}
       <div class="alert ok">Resposta registrada com sucesso. Se precisar, você pode enviar novamente para atualizar sua escolha.</div>

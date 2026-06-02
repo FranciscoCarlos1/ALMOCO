@@ -5,27 +5,42 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Painel - Intenção de Almoço</title>
     <style>
+      * { box-sizing: border-box; }
       body { font-family: Arial, sans-serif; margin: 0; background: #f4f6f8; }
-      .container { max-width: 1080px; margin: 24px auto; background: #fff; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,.08); }
+      .container { width: min(100% - 24px, 1080px); margin: 24px auto; background: #fff; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,.08); overflow-x: hidden; }
       .logo { width: 100%; max-width: 420px; display: block; margin: 0 auto 16px auto; }
       h1 { margin-top: 0; }
       .totais { display: flex; gap: 14px; flex-wrap: wrap; margin: 14px 0 20px; }
-      .card { background: #eef3ff; border: 1px solid #d7e2ff; border-radius: 8px; padding: 10px 14px; min-width: 160px; }
-      table { width: 100%; border-collapse: collapse; margin-top: 14px; }
+      .card { background: #eef3ff; border: 1px solid #d7e2ff; border-radius: 8px; padding: 10px 14px; min-width: 160px; flex: 1 1 180px; }
+      table { width: 100%; border-collapse: collapse; margin-top: 14px; min-width: 680px; }
       th, td { border: 1px solid #dce1e7; padding: 8px; text-align: left; }
       th { background: #f0f3f7; }
       .center { text-align: center; }
       .quadro th, .quadro td { border: 1px solid #5f5f5f; }
       .quadro thead th { background: #e8e8e8; }
       .total-row th, .total-row td { background: #fff200; font-weight: 700; }
-      .filtro { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-      input, button, a.btn { padding: 8px 10px; border-radius: 8px; border: 1px solid #cfd6dd; text-decoration: none; color: #111; }
+      .filtro { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+      input, select, button, a.btn { padding: 8px 10px; border-radius: 8px; border: 1px solid #cfd6dd; text-decoration: none; color: #111; max-width: 100%; }
       button, a.btn.primary { background: #0b5ed7; border-color: #0b5ed7; color: #fff; cursor: pointer; }
-      .split { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+      .split { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; min-width: 0; }
       .alert { padding: 10px 12px; border-radius: 8px; margin-top: 12px; }
       .ok { background: #d1f7de; color: #0b5a2a; }
       .err { background: #ffd9d9; color: #8f1a1a; }
-      @media (max-width: 900px) { .split { grid-template-columns: 1fr; } }
+      .split > * { min-width: 0; }
+      .table-wrap { width: 100%; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      .table-wrap table { margin-top: 0; }
+      @media (max-width: 900px) {
+        .split { grid-template-columns: 1fr; }
+        .container { width: min(100% - 16px, 1080px); padding: 16px 14px; }
+        .filtro { flex-direction: column; align-items: stretch; }
+        .filtro label, .filtro span, .filtro input, .filtro select, .filtro button, .filtro a.btn { width: 100%; }
+        .filtro a.btn, .filtro button { text-align: center; }
+        .logo { max-width: 220px; }
+      }
+      @media (max-width: 600px) {
+        h1 { font-size: 1.35rem; }
+        .card { min-width: 0; flex-basis: 100%; }
+      }
     </style>
   </head>
   <body>
@@ -115,6 +130,12 @@
         <button type="submit">Gerar backup manual agora</button>
       </form>
 
+      <section class="card" style="margin-bottom: 18px;">
+        <strong>Cardápio do dia</strong>
+        <p style="margin: 8px 0 12px;">Use um painel separado para cadastrar o texto do cardápio e uma imagem ilustrativa.</p>
+        <a class="btn primary" href="{{ cardapio_url }}">Abrir painel do cardápio</a>
+      </section>
+
       <section class="totais">
         <div class="card"><strong>SIM:</strong> {{ total_sim }}</div>
         <div class="card"><strong>NÃO:</strong> {{ total_nao }}</div>
@@ -133,6 +154,7 @@
 
       <h2>Quadro semanal por turma (SIM)</h2>
       <div>Semana considerada: {{ semana_inicio }} até {{ semana_fim }}</div>
+      <div class="table-wrap">
       <table class="quadro">
             <thead>
               <tr>
@@ -172,10 +194,12 @@
               </tr>
             </tfoot>
           </table>
+      </div>
 
       <div class="split">
         <section>
           <h2>Respostas da semana (checks positivos)</h2>
+          <div class="table-wrap">
           <table>
             <thead>
               <tr>
@@ -194,6 +218,7 @@
               {% endfor %}
             </tbody>
           </table>
+          </div>
         </section>
       </div>
     </main>

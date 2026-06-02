@@ -1,8 +1,8 @@
-from pathlib import Path
+from io import BytesIO
 
 from flask import Blueprint, render_template, request, redirect, url_for, jsonify, abort, send_file
 from datetime import date
-from db import DB_DIR, get_conn
+from db import get_conn
 
 bp_main = Blueprint('main', __name__)
 
@@ -13,7 +13,6 @@ TURMAS = [
 ]
 INTENCOES = ["SIM", "NAO"]
 DIAS_SEMANA = ["seg", "ter", "qua", "qui", "sex"]
-CARDAPIO_DIR = DB_DIR / "cardapio_imagens"
 
 @bp_main.route("/")
 def index():
@@ -23,7 +22,7 @@ def index():
     with get_conn() as conn:
         cardapio = conn.execute(
             """
-            SELECT descricao, imagem_path
+            SELECT descricao, imagem_blob
             FROM cardapios
             WHERE data_almoco = ?
             """,
@@ -37,17 +36,33 @@ def index():
         erro=erro,
         hoje=hoje,
         cardapio_hoje=cardapio["descricao"] if cardapio else None,
-        cardapio_imagem=cardapio["imagem_path"] if cardapio else None,
+        cardapio_imagem=hoje if cardapio and cardapio["imagem_blob"] else None,
     )
 
 
 @bp_main.route("/cardapio/imagens/<path:nome_arquivo>")
 def cardapio_imagem(nome_arquivo: str):
-    caminho = (CARDAPIO_DIR / nome_arquivo).resolve()
-    diretorio = CARDAPIO_DIR.resolve()
-    if diretorio not in caminho.parents or not caminho.is_file():
+    with get_conn() as conn:
+        cardapio = conn.execute(
+            """
+            SELECT imagem_blob, imagem_mime
+            FROM cardapios
+            WHERE data_almoco = ?
+            """,
+            (nome_arquivo,),
+        ).fetchone()
+
+    if not cardapio or not cardapio["imagem_blob"]:
         abort(404)
-    return send_file(Path(caminho))
+
+    imagem_blob = cardapio["imagem_blob"]
+    if isinstance(imagem_blob, memoryview):
+        imagem_blob = imagem_blob.tobytes()
+
+    return send_file(
+        BytesIO(imagem_blob),
+        mimetype=cardapio["imagem_mime"] or "application/octet-stream",
+    )
 
 @bp_main.route("/aluno")
 def buscar_aluno():

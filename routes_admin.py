@@ -1,17 +1,13 @@
 import os
-from pathlib import Path
-from uuid import uuid4
 
 from flask import Blueprint, render_template, request, abort, redirect, url_for
 from datetime import date
-from werkzeug.utils import secure_filename
 
-from db import DB_DIR, get_conn
+from db import get_conn
 
 bp_admin = Blueprint('admin', __name__)
 
 ADMIN_TOKEN = os.getenv("ALMOCO_ADMIN_TOKEN", "ifc-sbs")
-CARDAPIO_DIR = DB_DIR / "cardapio_imagens"
 ALLOWED_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
 
 TURMAS = [
@@ -31,7 +27,7 @@ def admin():
     with get_conn() as conn:
         cardapio = conn.execute(
             """
-            SELECT descricao, imagem_path
+            SELECT descricao, imagem_blob
             FROM cardapios
             WHERE data_almoco = ?
             """,
@@ -72,6 +68,7 @@ def admin():
         respostas=[],
         cardapio_texto=cardapio["descricao"] if cardapio else "",
         cardapio_salvo=cardapio_salvo,
+        cardapio_imagem=data_filtro if cardapio and cardapio["imagem_blob"] else None,
         cardapio_url=url_for("admin.painel_cardapio", token=token, data=data_filtro),
     )
 
@@ -85,7 +82,7 @@ def _obter_cardapio(data_filtro: str):
     with get_conn() as conn:
         return conn.execute(
             """
-            SELECT descricao, imagem_path
+            SELECT descricao, imagem_blob, imagem_mime
             FROM cardapios
             WHERE data_almoco = ?
             """,
@@ -93,25 +90,20 @@ def _obter_cardapio(data_filtro: str):
         ).fetchone()
 
 
-def _salvar_imagem_cardapio(arquivo, data_filtro: str) -> str:
-    nome_seguro = secure_filename(arquivo.filename or "")
-    extensao = Path(nome_seguro).suffix.lower()
+def _salvar_imagem_cardapio(arquivo) -> tuple[bytes, str]:
+    nome_arquivo = arquivo.filename or ""
+    extensao = os.path.splitext(nome_arquivo)[1].lower()
     if extensao not in ALLOWED_IMAGE_EXTENSIONS:
         raise ValueError("Envie uma imagem PNG, JPG, JPEG, WEBP ou GIF.")
 
-    CARDAPIO_DIR.mkdir(parents=True, exist_ok=True)
-    nome_arquivo = f"{data_filtro}-{uuid4().hex}{extensao}"
-    destino = CARDAPIO_DIR / nome_arquivo
-    arquivo.save(destino)
-    return nome_arquivo
-
-
-def _remover_imagem(nome_arquivo: str | None) -> None:
-    if not nome_arquivo:
-        return
-    caminho = CARDAPIO_DIR / nome_arquivo
-    if caminho.exists():
-        caminho.unlink()
+    mime_type = (arquivo.mimetype or "").strip() or {
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".webp": "image/webp",
+        ".gif": "image/gif",
+    }[extensao]
+    return arquivo.read(), mime_type
 
 
 @bp_admin.route("/admin/cardapio", methods=["GET", "POST"])
@@ -126,39 +118,39 @@ def painel_cardapio():
         remover_imagem = request.form.get("remover_imagem") == "1"
         arquivo = request.files.get("imagem")
         cardapio_atual = _obter_cardapio(data_filtro)
-        imagem_path = cardapio_atual["imagem_path"] if cardapio_atual else None
+        imagem_blob = cardapio_atual["imagem_blob"] if cardapio_atual else None
+        imagem_mime = cardapio_atual["imagem_mime"] if cardapio_atual else None
 
         try:
             if arquivo and arquivo.filename:
-                nova_imagem = _salvar_imagem_cardapio(arquivo, data_filtro)
-                _remover_imagem(imagem_path)
-                imagem_path = nova_imagem
+                imagem_blob, imagem_mime = _salvar_imagem_cardapio(arquivo)
             elif remover_imagem:
-                _remover_imagem(imagem_path)
-                imagem_path = None
+                imagem_blob = None
+                imagem_mime = None
         except ValueError as exc:
             return render_template(
                 "cardapio_admin.html",
                 token=token,
                 data_filtro=data_filtro,
                 cardapio_texto=descricao,
-                cardapio_imagem=imagem_path,
+                cardapio_imagem=data_filtro if imagem_blob else None,
                 cardapio_salvo=False,
                 erro_cardapio=str(exc),
             )
 
         with get_conn() as conn:
-            if descricao or imagem_path:
+            if descricao or imagem_blob:
                 conn.execute(
                     """
-                    INSERT INTO cardapios (data_almoco, descricao, imagem_path, atualizado_em)
-                    VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+                    INSERT INTO cardapios (data_almoco, descricao, imagem_blob, imagem_mime, atualizado_em)
+                    VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
                     ON CONFLICT(data_almoco) DO UPDATE SET
                         descricao = excluded.descricao,
-                        imagem_path = excluded.imagem_path,
+                        imagem_blob = excluded.imagem_blob,
+                        imagem_mime = excluded.imagem_mime,
                         atualizado_em = CURRENT_TIMESTAMP
                     """,
-                    (data_filtro, descricao, imagem_path),
+                    (data_filtro, descricao, imagem_blob, imagem_mime),
                 )
             else:
                 conn.execute(
@@ -175,7 +167,7 @@ def painel_cardapio():
         token=token,
         data_filtro=data_filtro,
         cardapio_texto=cardapio["descricao"] if cardapio else "",
-        cardapio_imagem=cardapio["imagem_path"] if cardapio else None,
+        cardapio_imagem=data_filtro if cardapio and cardapio["imagem_blob"] else None,
         cardapio_salvo=request.args.get("salvo") == "1",
         erro_cardapio=None,
     )

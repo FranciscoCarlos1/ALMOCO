@@ -21,6 +21,12 @@ MIGRATIONS = {
     """,
     4: """
         ALTER TABLE cardapios ADD COLUMN imagem_path TEXT;
+    """,
+    5: """
+        ALTER TABLE cardapios ADD COLUMN imagem_blob BLOB;
+    """,
+    6: """
+        ALTER TABLE cardapios ADD COLUMN imagem_mime TEXT;
     """
 }
 

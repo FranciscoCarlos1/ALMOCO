@@ -391,6 +391,13 @@ def _validar_token(token: str) -> None:
         abort(403, "Acesso negado. Informe um token válido na URL.")
 
 
+def _obter_intencao_filtro() -> str:
+    intencao_filtro = request.args.get("intencao", "TODOS").strip().upper()
+    if intencao_filtro not in {"TODOS", "SIM", "NAO"}:
+        return "TODOS"
+    return intencao_filtro
+
+
 def _obter_cardapio(data_filtro: str):
     with get_conn() as conn:
         return conn.execute(
@@ -425,16 +432,28 @@ def export_csv() -> Response:
     _validar_token(token)
 
     data_filtro = request.args.get("data") or date.today().isoformat()
+    intencao_filtro = _obter_intencao_filtro()
     with get_conn() as conn:
-        rows = conn.execute(
-            """
-            SELECT nome, matricula, turma, data_almoco, intencao, criado_em
-            FROM respostas
-            WHERE data_almoco = ?
-            ORDER BY turma, nome
-            """,
-            (data_filtro,),
-        ).fetchall()
+        if intencao_filtro in {"SIM", "NAO"}:
+            rows = conn.execute(
+                """
+                SELECT nome, matricula, turma, data_almoco, intencao, criado_em
+                FROM respostas
+                WHERE data_almoco = ? AND intencao = ?
+                ORDER BY turma, nome
+                """,
+                (data_filtro, intencao_filtro),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """
+                SELECT nome, matricula, turma, data_almoco, intencao, criado_em
+                FROM respostas
+                WHERE data_almoco = ?
+                ORDER BY turma, nome
+                """,
+                (data_filtro,),
+            ).fetchall()
 
     output = StringIO()
     writer = csv.writer(output)
@@ -447,7 +466,7 @@ def export_csv() -> Response:
     return Response(
         csv_data,
         mimetype="text/csv",
-        headers={"Content-Disposition": f"attachment; filename=almoco_{data_filtro}.csv"},
+        headers={"Content-Disposition": f"attachment; filename=almoco_{data_filtro}_{intencao_filtro.lower()}.csv"},
     )
 
 
@@ -457,30 +476,54 @@ def export_quadro_csv() -> Response:
     _validar_token(token)
 
     data_filtro = request.args.get("data") or date.today().isoformat()
+    intencao_filtro = _obter_intencao_filtro()
     try:
         data_base = parse_iso_date(data_filtro)
     except ValueError:
         data_base = date.today()
 
-    segunda = week_start(data_base)
-    sexta = segunda + timedelta(days=4)
     with get_conn() as conn:
-        semana_sim, quadro_rows, total_semana_geral = build_quadro_semana(conn, segunda, sexta)
-        respostas = build_respostas_semana(conn, segunda, sexta)
+        resumo_rows = conn.execute(
+            """
+            SELECT turma,
+                   SUM(CASE WHEN intencao = 'SIM' THEN 1 ELSE 0 END) AS sim
+            FROM respostas
+            WHERE data_almoco = ?
+            GROUP BY turma
+            ORDER BY turma
+            """,
+            (data_filtro,),
+        ).fetchall()
+        respostas = build_respostas_dia(conn, data_filtro, intencao_filtro)
+
+    resumo = {turma: 0 for turma in TURMAS}
+    for row in resumo_rows:
+        resumo[row["turma"]] = row["sim"] or 0
 
     output = StringIO()
     writer = csv.writer(output, delimiter=';')
-    writer.writerow(["#", "Turma", "Seg", "Ter", "Qua", "Qui", "Sex", "Total"])
-    for row in quadro_rows:
-        writer.writerow([row["ordem"], row["turma_nome"], row["seg"], row["ter"], row["qua"], row["qui"], row["sex"], row["total"]])
-    writer.writerow(["", "Total", semana_sim["seg"], semana_sim["ter"], semana_sim["qua"], semana_sim["qui"], semana_sim["sex"], total_semana_geral])
+    writer.writerow(["Data", data_base.isoformat()])
+    writer.writerow(["Filtro", intencao_filtro])
+    writer.writerow([])
+    writer.writerow(["#", "Turma", "SIM", "Total"])
+    total_sim = 0
+    for idx, turma in enumerate(TURMAS, start=1):
+        sim = resumo[turma]
+        total_sim += sim
+        writer.writerow([idx, turma, sim, sim])
+    writer.writerow(["", "Total", total_sim, total_sim])
+    writer.writerow([])
+    writer.writerow(["Nome", "Turma", "Intencao"])
+    for row in respostas:
+        writer.writerow([row["nome"], row["turma"], row["intencao"]])
+    writer.writerow(["Total exibido", "", len(respostas)])
 
     csv_data = output.getvalue()
     output.close()
     return Response(
         csv_data,
         mimetype="text/csv",
-        headers={"Content-Disposition": f"attachment; filename=quadro_semanal_{segunda.isoformat()}_{sexta.isoformat()}.csv"},
+        headers={"Content-Disposition": f"attachment; filename=quadro_diario_{data_base.isoformat()}_{intencao_filtro.lower()}.csv"},
     )
 
 
@@ -490,28 +533,51 @@ def export_quadro_xlsx() -> Response:
     _validar_token(token)
 
     data_filtro = request.args.get("data") or date.today().isoformat()
+    intencao_filtro = _obter_intencao_filtro()
     try:
         data_base = parse_iso_date(data_filtro)
     except ValueError:
         data_base = date.today()
 
-    segunda = week_start(data_base)
-    sexta = segunda + timedelta(days=4)
     with get_conn() as conn:
-        semana_sim, quadro_rows, total_semana_geral = build_quadro_semana(conn, segunda, sexta)
+        resumo_rows = conn.execute(
+            """
+            SELECT turma,
+                   SUM(CASE WHEN intencao = 'SIM' THEN 1 ELSE 0 END) AS sim
+            FROM respostas
+            WHERE data_almoco = ?
+            GROUP BY turma
+            ORDER BY turma
+            """,
+            (data_filtro,),
+        ).fetchall()
+        respostas = build_respostas_dia(conn, data_filtro, intencao_filtro)
+
+    resumo = {turma: 0 for turma in TURMAS}
+    for row in resumo_rows:
+        resumo[row["turma"]] = row["sim"] or 0
 
     workbook = Workbook()
     sheet = workbook.active
-    sheet.title = "quadro_semanal"
-    sheet.append(["#", "Turma", "Seg", "Ter", "Qua", "Qui", "Sex", "Total"])
-    for row in quadro_rows:
-        sheet.append([row["ordem"], row["turma_nome"], row["seg"], row["ter"], row["qua"], row["qui"], row["sex"], row["total"]])
-    sheet.append(["", "Total", semana_sim["seg"], semana_sim["ter"], semana_sim["qua"], semana_sim["qui"], semana_sim["sex"], total_semana_geral])
+    sheet.title = "quadro_diario"
+    sheet.append(["#", "Turma", "SIM", "Total"])
+    total_sim = 0
+    for idx, turma in enumerate(TURMAS, start=1):
+        sim = resumo[turma]
+        total_sim += sim
+        sheet.append([idx, turma, sim, sim])
+    sheet.append(["", "Total", total_sim, total_sim])
+
+    respostas_sheet = workbook.create_sheet("respostas_dia")
+    respostas_sheet.append(["Nome", "Turma", "Intencao"])
+    for row in respostas:
+        respostas_sheet.append([row["nome"], row["turma"], row["intencao"]])
+    respostas_sheet.append(["Total exibido", "", len(respostas)])
 
     meta = workbook.create_sheet("metadados")
     meta.append(["campo", "valor"])
-    meta.append(["periodo_inicio", segunda.isoformat()])
-    meta.append(["periodo_fim", sexta.isoformat()])
+    meta.append(["data_referencia", data_base.isoformat()])
+    meta.append(["filtro_intencao", intencao_filtro])
     meta.append(["data_referencia", data_filtro])
     meta.append(["gerado_em", datetime.now().isoformat(timespec="seconds")])
 
@@ -521,7 +587,7 @@ def export_quadro_xlsx() -> Response:
     return Response(
         buffer.getvalue(),
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f"attachment; filename=quadro_semanal_{segunda.isoformat()}_{sexta.isoformat()}.xlsx"},
+        headers={"Content-Disposition": f"attachment; filename=quadro_diario_{data_base.isoformat()}_{intencao_filtro.lower()}.xlsx"},
     )
 
 
@@ -531,6 +597,7 @@ def export_quadro_pdf() -> Response:
     _validar_token(token)
 
     data_filtro = request.args.get("data") or date.today().isoformat()
+    intencao_filtro = _obter_intencao_filtro()
     try:
         data_base = parse_iso_date(data_filtro)
     except ValueError:
@@ -549,7 +616,7 @@ def export_quadro_pdf() -> Response:
             """,
             (data_filtro,),
         ).fetchall()
-        respostas = build_respostas_dia(conn, data_filtro)
+        respostas = build_respostas_dia(conn, data_filtro, intencao_filtro)
 
     resumo = {turma: {"sim": 0, "nao": 0} for turma in TURMAS}
     for row in resumo_rows:
@@ -600,6 +667,7 @@ def export_quadro_pdf() -> Response:
         Paragraph("Quadro diario por turma", styles["Title"]),
         Spacer(1, 8),
         Paragraph(f"Data: {data_base.isoformat()}", styles["Normal"]),
+        Paragraph(f"Filtro de intencao: {intencao_filtro}", styles["Normal"]),
         Spacer(1, 12),
     ])
 
@@ -638,7 +706,7 @@ def export_quadro_pdf() -> Response:
     if len(respostas_table_data) == 1:
         respostas_table_data.append(["Sem respostas no dia", "-", "-"])
 
-    respostas_table_data.append(["Total de SIM do dia", "", total_sim])
+    respostas_table_data.append(["Total exibido", "", len(respostas)])
 
     respostas_table = Table(respostas_table_data, colWidths=[360, 150, 250], repeatRows=1)
     respostas_table.setStyle(TableStyle([
@@ -661,7 +729,7 @@ def export_quadro_pdf() -> Response:
     return Response(
         pdf_buffer.getvalue(),
         mimetype="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename=quadro_diario_{data_base.isoformat()}.pdf"},
+        headers={"Content-Disposition": f"attachment; filename=quadro_diario_{data_base.isoformat()}_{intencao_filtro.lower()}.pdf"},
     )
 
 

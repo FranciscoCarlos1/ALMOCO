@@ -98,10 +98,10 @@
           <option value="NAO" {% if intencao_filtro == 'NAO' %}selected{% endif %}>NÃO</option>
         </select>
         <button type="submit">Atualizar</button>
-        <a class="btn primary" href="/export.csv?data={{ data_filtro }}&periodo={{ periodo }}&token={{ token }}">Exportar CSV</a>
-        <a class="btn primary" href="/export_quadro.csv?data={{ data_filtro }}&token={{ token }}">Exportar quadro semanal (CSV)</a>
-        <a class="btn primary" href="/export_quadro.xlsx?data={{ data_filtro }}&token={{ token }}">Exportar quadro semanal (XLSX)</a>
-        <a class="btn primary" href="/export_quadro.pdf?data={{ data_filtro }}&token={{ token }}">Exportar quadro semanal (PDF)</a>
+        <a class="btn primary" href="/export.csv?data={{ data_filtro }}&periodo={{ periodo }}&intencao={{ intencao_filtro }}&token={{ token }}">Exportar CSV</a>
+        <a class="btn primary" href="/export_quadro.csv?data={{ data_filtro }}&intencao={{ intencao_filtro }}&token={{ token }}">Exportar quadro diário (CSV)</a>
+        <a class="btn primary" href="/export_quadro.xlsx?data={{ data_filtro }}&intencao={{ intencao_filtro }}&token={{ token }}">Exportar quadro diário (XLSX)</a>
+        <a class="btn primary" href="/export_quadro.pdf?data={{ data_filtro }}&intencao={{ intencao_filtro }}&token={{ token }}">Exportar quadro diário (PDF)</a>
         <a class="btn primary" href="/admin/planilha?token={{ token }}&turma=TIN I&semana={{ data_filtro }}">Planilha semanal (ODS)</a>
       </form>
 

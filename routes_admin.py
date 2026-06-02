@@ -134,6 +134,53 @@ def build_quadro_semana(conn, segunda: date, sexta: date) -> tuple[dict[str, int
 
     return semana_sim, quadro_rows, sum(semana_sim.values())
 
+
+def build_respostas_semana(conn, segunda: date, sexta: date) -> list[dict[str, str]]:
+    respostas_semana_rows = conn.execute(
+        """
+        SELECT nome, matricula, turma, data_almoco, intencao
+        FROM respostas
+        WHERE data_almoco BETWEEN ? AND ?
+        ORDER BY turma, nome, data_almoco
+        """,
+        (segunda.isoformat(), sexta.isoformat()),
+    ).fetchall()
+
+    respostas_por_pessoa: dict[str, dict[str, str | dict[str, bool]]] = {}
+    week_map_respostas = {
+        segunda.isoformat(): "seg",
+        (segunda + timedelta(days=1)).isoformat(): "ter",
+        (segunda + timedelta(days=2)).isoformat(): "qua",
+        (segunda + timedelta(days=3)).isoformat(): "qui",
+        (segunda + timedelta(days=4)).isoformat(): "sex",
+    }
+    for row in respostas_semana_rows:
+        matricula = row["matricula"]
+        if matricula not in respostas_por_pessoa:
+            respostas_por_pessoa[matricula] = {
+                "nome": row["nome"],
+                "turma": row["turma"],
+                "dias": {"seg": False, "ter": False, "qua": False, "qui": False, "sex": False},
+            }
+        dia = week_map_respostas.get(str(row["data_almoco"]))
+        if dia and row["intencao"] == "SIM":
+            respostas_por_pessoa[matricula]["dias"][dia] = True
+
+    dias_label = {"seg": "Seg", "ter": "Ter", "qua": "Qua", "qui": "Qui", "sex": "Sex"}
+    respostas = []
+    for item in sorted(respostas_por_pessoa.values(), key=lambda x: (x["turma"], x["nome"])):
+        dias = item["dias"]
+        checks = [f"{dias_label[dia]} ✅" for dia in ["seg", "ter", "qua", "qui", "sex"] if dias[dia]]
+        respostas.append(
+            {
+                "nome": item["nome"],
+                "turma": item["turma"],
+                "intencao": " | ".join(checks) if checks else "Sem check na semana",
+            }
+        )
+
+    return respostas
+
 @bp_admin.route("/admin")
 def admin():
     token = request.args.get("token", "")
@@ -176,15 +223,6 @@ def admin():
             """,
             (data_filtro,),
         ).fetchall()
-        respostas_semana_rows = conn.execute(
-            """
-            SELECT nome, matricula, turma, data_almoco, intencao
-            FROM respostas
-            WHERE data_almoco BETWEEN ? AND ?
-            ORDER BY turma, nome, data_almoco
-            """,
-            (segunda.isoformat(), sexta.isoformat()),
-        ).fetchall()
         relatorio_periodo_rows = conn.execute(
             """
             SELECT data_almoco,
@@ -224,6 +262,7 @@ def admin():
             (ano_inicio.isoformat(), ano_fim.isoformat()),
         ).fetchone()["total"]
         semana_sim, quadro_rows, total_semana_geral = build_quadro_semana(conn, segunda, sexta)
+        respostas = build_respostas_semana(conn, segunda, sexta)
 
     resumo = {turma: {"sim": 0, "nao": 0, "total": 0} for turma in TURMAS}
     for row in resumo_rows:
@@ -236,39 +275,6 @@ def admin():
     total_sim = sum(item["sim"] for item in resumo.values())
     total_nao = sum(item["nao"] for item in resumo.values())
     total_geral = total_sim
-
-    respostas_por_pessoa: dict[str, dict[str, str | dict[str, bool]]] = {}
-    week_map_respostas = {
-        segunda.isoformat(): "seg",
-        (segunda + timedelta(days=1)).isoformat(): "ter",
-        (segunda + timedelta(days=2)).isoformat(): "qua",
-        (segunda + timedelta(days=3)).isoformat(): "qui",
-        (segunda + timedelta(days=4)).isoformat(): "sex",
-    }
-    for row in respostas_semana_rows:
-        matricula = row["matricula"]
-        if matricula not in respostas_por_pessoa:
-            respostas_por_pessoa[matricula] = {
-                "nome": row["nome"],
-                "turma": row["turma"],
-                "dias": {"seg": False, "ter": False, "qua": False, "qui": False, "sex": False},
-            }
-        dia = week_map_respostas.get(str(row["data_almoco"]))
-        if dia and row["intencao"] == "SIM":
-            respostas_por_pessoa[matricula]["dias"][dia] = True
-
-    dias_label = {"seg": "Seg", "ter": "Ter", "qua": "Qua", "qui": "Qui", "sex": "Sex"}
-    respostas = []
-    for item in sorted(respostas_por_pessoa.values(), key=lambda x: (x["turma"], x["nome"])):
-        dias = item["dias"]
-        checks = [f"{dias_label[dia]} ✅" for dia in ["seg", "ter", "qua", "qui", "sex"] if dias[dia]]
-        respostas.append(
-            {
-                "nome": item["nome"],
-                "turma": item["turma"],
-                "intencao": " | ".join(checks) if checks else "Sem check na semana",
-            }
-        )
 
     total_periodo_sim = 0
     total_periodo_nao = 0
@@ -395,6 +401,7 @@ def export_quadro_csv() -> Response:
     sexta = segunda + timedelta(days=4)
     with get_conn() as conn:
         semana_sim, quadro_rows, total_semana_geral = build_quadro_semana(conn, segunda, sexta)
+        respostas = build_respostas_semana(conn, segunda, sexta)
 
     output = StringIO()
     writer = csv.writer(output, delimiter=';')
@@ -505,7 +512,7 @@ def export_quadro_pdf() -> Response:
         table_data.append([row["ordem"], row["turma_nome"], row["seg"], row["ter"], row["qua"], row["qui"], row["sex"], row["total"]])
     table_data.append(["", "Total", semana_sim["seg"], semana_sim["ter"], semana_sim["qua"], semana_sim["qui"], semana_sim["sex"], total_semana_geral])
 
-    table = Table(table_data, colWidths=[28, 310, 55, 55, 55, 55, 55, 70])
+    table = Table(table_data, colWidths=[28, 310, 55, 55, 55, 55, 55, 70], repeatRows=1)
     table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#E8E8E8")),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.black),
@@ -518,6 +525,31 @@ def export_quadro_pdf() -> Response:
         ("GRID", (0, 0), (-1, -1), 0.8, colors.HexColor("#5F5F5F")),
     ]))
     story.append(table)
+
+    story.extend([
+        Spacer(1, 18),
+        Paragraph("Respostas da semana (checks positivos)", styles["Heading2"]),
+        Spacer(1, 8),
+    ])
+
+    respostas_table_data = [["Nome", "Turma", "Intenção (dias com check)"]]
+    for row in respostas:
+        respostas_table_data.append([row["nome"], row["turma"], row["intencao"]])
+    if len(respostas_table_data) == 1:
+        respostas_table_data.append(["Sem respostas na semana", "-", "-"])
+
+    respostas_table = Table(respostas_table_data, colWidths=[300, 120, 320], repeatRows=1)
+    respostas_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#F0F3F7")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.black),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#D0D7DE")),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#FAFBFC")]),
+        ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ("LEADING", (0, 0), (-1, -1), 11),
+    ]))
+    story.append(respostas_table)
     document.build(story)
     pdf_buffer.seek(0)
 

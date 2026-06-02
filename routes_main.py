@@ -169,3 +169,8 @@ def enviar():
         conn.commit()
 
     return redirect(url_for("main.index", sucesso=1))
+
+
+@bp_main.get("/enviar")
+def enviar_redirect():
+    return redirect(url_for("main.index"))

@@ -519,11 +519,41 @@ def export_quadro_pdf() -> Response:
     except ValueError:
         data_base = date.today()
 
-    segunda = week_start(data_base)
-    sexta = segunda + timedelta(days=4)
     with get_conn() as conn:
-        semana_sim, quadro_rows, total_semana_geral = build_quadro_semana(conn, segunda, sexta)
-        respostas = build_respostas_semana(conn, segunda, sexta)
+        resumo_rows = conn.execute(
+            """
+            SELECT turma,
+                   SUM(CASE WHEN intencao = 'SIM' THEN 1 ELSE 0 END) AS sim,
+                   SUM(CASE WHEN intencao = 'NAO' THEN 1 ELSE 0 END) AS nao
+            FROM respostas
+            WHERE data_almoco = ?
+            GROUP BY turma
+            ORDER BY turma
+            """,
+            (data_filtro,),
+        ).fetchall()
+        respostas = build_respostas_dia(conn, data_filtro)
+
+    resumo = {turma: {"sim": 0, "nao": 0} for turma in TURMAS}
+    for row in resumo_rows:
+        resumo[row["turma"]] = {
+            "sim": row["sim"] or 0,
+            "nao": row["nao"] or 0,
+        }
+
+    quadro_rows = []
+    for idx, turma in enumerate(TURMAS, start=1):
+        item = resumo[turma]
+        quadro_rows.append(
+            {
+                "ordem": idx,
+                "turma_nome": turma,
+                "sim": item["sim"],
+                "total": item["sim"],
+            }
+        )
+
+    total_sim = sum(item["sim"] for item in resumo.values())
 
     pdf_buffer = BytesIO()
     document = SimpleDocTemplate(pdf_buffer, pagesize=landscape(A4), leftMargin=24, rightMargin=24, topMargin=24, bottomMargin=24)
@@ -550,18 +580,18 @@ def export_quadro_pdf() -> Response:
         story.append(Spacer(1, 10))
 
     story.extend([
-        Paragraph("Quadro semanal por turma (SIM)", styles["Title"]),
+        Paragraph("Quadro diario por turma", styles["Title"]),
         Spacer(1, 8),
-        Paragraph(f"Semana: {segunda.isoformat()} até {sexta.isoformat()}", styles["Normal"]),
+        Paragraph(f"Data: {data_base.isoformat()}", styles["Normal"]),
         Spacer(1, 12),
     ])
 
-    table_data = [["#", "Turma", "Seg", "Ter", "Qua", "Qui", "Sex", "Total"]]
+    table_data = [["#", "Turma", "SIM", "Total"]]
     for row in quadro_rows:
-        table_data.append([row["ordem"], row["turma_nome"], row["seg"], row["ter"], row["qua"], row["qui"], row["sex"], row["total"]])
-    table_data.append(["", "Total", semana_sim["seg"], semana_sim["ter"], semana_sim["qua"], semana_sim["qui"], semana_sim["sex"], total_semana_geral])
+        table_data.append([row["ordem"], row["turma_nome"], row["sim"], row["total"]])
+    table_data.append(["", "Total", total_sim, total_sim])
 
-    table = Table(table_data, colWidths=[28, 310, 55, 55, 55, 55, 55, 70], repeatRows=1)
+    table = Table(table_data, colWidths=[40, 420, 120, 120], repeatRows=1)
     table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#E8E8E8")),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.black),
@@ -577,25 +607,23 @@ def export_quadro_pdf() -> Response:
 
     story.extend([
         Spacer(1, 18),
-        Paragraph("Respostas da semana (checks positivos)", styles["Heading2"]),
+        Paragraph("Respostas do dia", styles["Heading2"]),
         Spacer(1, 8),
     ])
 
-    respostas_table_data = [["Nome", "Turma", "Intenção (dias com check)", "Total"]]
+    respostas_table_data = [["Nome", "Turma", "Intencao"]]
     for row in respostas:
         respostas_table_data.append([
             row["nome"],
             row["turma"],
-            row["intencao"].replace("✅", "OK"),
-            row["total_checks"],
+            row["intencao"],
         ])
     if len(respostas_table_data) == 1:
-        respostas_table_data.append(["Sem respostas na semana", "-", "-", 0])
+        respostas_table_data.append(["Sem respostas no dia", "-", "-"])
 
-    total_checks_respostas = sum(int(row["total_checks"]) for row in respostas)
-    respostas_table_data.append(["Total", "", "", total_checks_respostas])
+    respostas_table_data.append(["Total de SIM do dia", "", total_sim])
 
-    respostas_table = Table(respostas_table_data, colWidths=[280, 110, 300, 60], repeatRows=1)
+    respostas_table = Table(respostas_table_data, colWidths=[360, 150, 250], repeatRows=1)
     respostas_table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#F0F3F7")),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.black),
@@ -616,7 +644,7 @@ def export_quadro_pdf() -> Response:
     return Response(
         pdf_buffer.getvalue(),
         mimetype="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename=quadro_semanal_{segunda.isoformat()}_{sexta.isoformat()}.pdf"},
+        headers={"Content-Disposition": f"attachment; filename=quadro_diario_{data_base.isoformat()}.pdf"},
     )
 
 

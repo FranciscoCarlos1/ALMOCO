@@ -146,7 +146,6 @@
                 <th class="center" style="width:50px">#</th>
                 <th>Turma</th>
                 <th class="center">SIM</th>
-                <th class="center">NÃO</th>
                 <th class="center" style="width:90px">Total</th>
               </tr>
             </thead>
@@ -156,7 +155,6 @@
                 <td class="center">{{ row.ordem }}</td>
                 <td>{{ row.turma_nome }}</td>
                 <td class="center">{{ row.sim }}</td>
-                <td class="center">{{ row.nao }}</td>
                 <td class="center"><strong>{{ row.total }}</strong></td>
               </tr>
               {% endfor %}
@@ -165,7 +163,6 @@
               <tr class="total-row">
                 <th class="center" colspan="2">Total</th>
                 <th class="center">{{ total_sim }}</th>
-                <th class="center">{{ total_nao }}</th>
                 <th class="center">{{ total_respostas_dia }}</th>
               </tr>
             </tfoot>

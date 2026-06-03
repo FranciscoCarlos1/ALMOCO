@@ -7,7 +7,7 @@ from db import get_conn
 bp_main = Blueprint('main', __name__)
 
 TURMAS = [
-    "TIN I", "TIN II", "TIN III",
+    "TIN I A", "TIN I B", "TIN II", "TIN III",
     "TAI I", "TAI II", "TAI III",
     "TST I", "TST II", "TST III", "SERVIDORES"
 ]

@@ -13,9 +13,6 @@
       p { color: #444; }
       label { font-weight: 600; display: block; margin-top: 14px; min-width: 0; }
       input, select { width: 100%; padding: 10px; border: 1px solid #cfd6dd; border-radius: 8px; margin-top: 6px; box-sizing: border-box; min-width: 0; }
-      .dias-group { margin-top: 10px; display: grid; grid-template-columns: repeat(5, minmax(80px, 1fr)); gap: 8px; }
-      .dias-group label { font-weight: 400; margin: 0; display: flex; gap: 4px; align-items: center; }
-      .dias-group input[type="checkbox"] { width: auto; margin: 0; }
       button { margin-top: 20px; width: 100%; padding: 12px; background: #198754; color: #fff; border: 0; border-radius: 8px; font-size: 1rem; cursor: pointer; }
       button:hover { background: #146c43; }
       .alert { padding: 10px 12px; border-radius: 8px; margin-top: 12px; }
@@ -32,12 +29,7 @@
         .container { width: min(100% - 16px, 620px); margin: 12px auto; padding: 18px 14px; border-radius: 0; }
         .logo { max-width: 180px; }
         h1 { font-size: 1.3rem; }
-        .dias-group { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-        .dias-group label { padding: 10px 12px; border: 1px solid #dce1e7; border-radius: 8px; justify-content: space-between; }
         .cardapio { padding: 12px; }
-      }
-      @media (max-width: 380px) {
-        .dias-group { grid-template-columns: 1fr; }
       }
     </style>
   </head>
@@ -84,85 +76,10 @@
         <div class="dia-atual">
           {% if dia_atual == 'seg' %}Hoje: Segunda-feira{% elif dia_atual == 'ter' %}Hoje: Terça-feira{% elif dia_atual == 'qua' %}Hoje: Quarta-feira{% elif dia_atual == 'qui' %}Hoje: Quinta-feira{% elif dia_atual == 'sex' %}Hoje: Sexta-feira{% else %}Hoje não é um dia letivo para seleção automática.{% endif %}
         </div>
-        <div class="dias-group">
-          <label>Seg <input type="checkbox" name="dias" value="seg" {% if dia_atual == 'seg' %}checked{% endif %} /></label>
-          <label>Ter <input type="checkbox" name="dias" value="ter" {% if dia_atual == 'ter' %}checked{% endif %} /></label>
-          <label>Qua <input type="checkbox" name="dias" value="qua" {% if dia_atual == 'qua' %}checked{% endif %} /></label>
-          <label>Qui <input type="checkbox" name="dias" value="qui" {% if dia_atual == 'qui' %}checked{% endif %} /></label>
-          <label>Sex <input type="checkbox" name="dias" value="sex" {% if dia_atual == 'sex' %}checked{% endif %} /></label>
-        </div>
 
-        <button type="submit">Enviar resposta</button>
+        <button type="submit" {% if not dia_atual %}disabled{% endif %}>Enviar resposta</button>
       </form>
 
     </main>
-  <script>
-    document.addEventListener('DOMContentLoaded', function () {
-      const turmaSelect = document.querySelector('select[name="turma"]');
-      if (turmaSelect) {
-        for (const option of turmaSelect.options) {
-          const optionValue = (option.value || '').trim().toUpperCase();
-          const optionLabel = (option.textContent || '').trim().toUpperCase();
-          if (optionValue === 'SERVIDORES' || optionLabel === 'SERVIDORES') {
-            option.textContent = 'SERVIDOR';
-            if (option.value === '') {
-              option.value = 'SERVIDOR';
-            }
-          }
-        }
-      }
-
-      const normalize = function (value) {
-        return (value || '')
-          .normalize('NFD')
-          .replace(/[\u0300-\u036f]/g, '')
-          .toLowerCase();
-      };
-
-      const dayAliases = {
-        1: ['seg', 'segunda'],
-        2: ['ter', 'terca', 'terça'],
-        3: ['qua', 'quarta'],
-        4: ['qui', 'quinta'],
-        5: ['sex', 'sexta']
-      };
-
-      const allDayCheckboxes = Array.from(document.querySelectorAll('input[type="checkbox"]')).filter(function (input) {
-        const tokens = [input.value, input.name, input.id]
-          .filter(Boolean)
-          .map(normalize);
-        return ['seg', 'segunda', 'ter', 'terca', 'terça', 'qua', 'quarta', 'qui', 'quinta', 'sex', 'sexta'].some(function (alias) {
-          return tokens.includes(alias);
-        });
-      });
-      if (!allDayCheckboxes.length || allDayCheckboxes.some(function (input) { return input.checked; })) {
-        return;
-      }
-
-      const selectedDateInput = document.querySelector('input[type="date"]');
-      const baseDate = selectedDateInput && selectedDateInput.value
-        ? new Date(selectedDateInput.value + 'T12:00:00')
-        : new Date();
-      const weekday = baseDate.getDay();
-      const aliases = dayAliases[weekday];
-      if (!aliases) {
-        return;
-      }
-
-      const targetCheckbox = allDayCheckboxes.find(function (input) {
-        const tokens = [input.value, input.name, input.id]
-          .filter(Boolean)
-          .map(normalize);
-        return aliases.some(function (alias) {
-          return tokens.includes(alias);
-        });
-      });
-
-      if (targetCheckbox) {
-        targetCheckbox.checked = true;
-        targetCheckbox.dispatchEvent(new Event('change', { bubbles: true }));
-      }
-    });
-  </script>
   </body>
 </html>

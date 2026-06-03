@@ -113,12 +113,17 @@ def enviar():
         dias_marcados.extend(partes)
     dias_marcados = list(dict.fromkeys(dias_marcados))
 
+    if not dias_marcados:
+        dia_semana_atual = date.today().weekday()
+        if dia_semana_atual < len(DIAS_SEMANA):
+            dias_marcados = [DIAS_SEMANA[dia_semana_atual]]
+
     if not nome:
         return redirect(url_for("main.index", erro="Informe seu nome."))
     if turma not in TURMAS:
         return redirect(url_for("main.index", erro="Selecione uma turma válida."))
     if not dias_marcados:
-        return redirect(url_for("main.index", erro="Marque pelo menos um dia da semana."))
+        return redirect(url_for("main.index", erro="Hoje não é um dia letivo para envio automático."))
     if any(item not in DIAS_SEMANA for item in dias_marcados):
         return redirect(url_for("main.index", erro="Seleção de dias inválida."))
 

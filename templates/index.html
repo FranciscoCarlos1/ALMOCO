@@ -23,6 +23,7 @@
       .err { background: #ffd9d9; color: #8f1a1a; }
       .small { font-size: .9rem; color: #666; margin-top: 14px; }
       .hint { margin-top: 8px; font-size: .9rem; color: #555; }
+      .dia-atual { margin-top: 8px; font-size: .95rem; color: #146c43; font-weight: 600; }
       .cardapio { margin: 18px 0; padding: 14px 16px; border-radius: 10px; background: #fff7e6; border: 1px solid #f3d08a; }
       .cardapio h2 { margin: 0 0 8px; font-size: 1.05rem; color: #7a4b00; }
       .cardapio p { margin: 0; white-space: pre-line; }
@@ -44,7 +45,6 @@
     <main class="container">
       <img class="logo" src="/static/logo_ifc_horizontal_SaoBentodosul.png" onerror="this.onerror=null;this.src='/static/logo-ifc.svg';" alt="Instituto Federal Catarinense" />
       <h1>Intenção de Almoço - IFC SBS</h1>
-      <p>Preencha para informar em quais dias da semana você vai almoçar.</p>
 
       {% if cardapio_hoje %}
       <section class="cardapio">
@@ -82,6 +82,9 @@
         </select>
 
         <label>Marque os dias:</label>
+        <div class="dia-atual">
+          {% if dia_atual == 'seg' %}Hoje: Segunda-feira{% elif dia_atual == 'ter' %}Hoje: Terça-feira{% elif dia_atual == 'qua' %}Hoje: Quarta-feira{% elif dia_atual == 'qui' %}Hoje: Quinta-feira{% elif dia_atual == 'sex' %}Hoje: Sexta-feira{% else %}Hoje não é um dia letivo para seleção automática.{% endif %}
+        </div>
         <div class="dias-group">
           <label>Seg <input type="checkbox" name="dias" value="seg" {% if dia_atual == 'seg' %}checked{% endif %} /></label>
           <label>Ter <input type="checkbox" name="dias" value="ter" {% if dia_atual == 'ter' %}checked{% endif %} /></label>
@@ -94,5 +97,73 @@
       </form>
 
     </main>
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      const turmaSelect = document.querySelector('select[name="turma"]');
+      if (turmaSelect) {
+        for (const option of turmaSelect.options) {
+          const optionValue = (option.value || '').trim().toUpperCase();
+          const optionLabel = (option.textContent || '').trim().toUpperCase();
+          if (optionValue === 'SERVIDORES' || optionLabel === 'SERVIDORES') {
+            option.textContent = 'SERVIDOR';
+            if (option.value === '') {
+              option.value = 'SERVIDOR';
+            }
+          }
+        }
+      }
+
+      const normalize = function (value) {
+        return (value || '')
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .toLowerCase();
+      };
+
+      const dayAliases = {
+        1: ['seg', 'segunda'],
+        2: ['ter', 'terca', 'terça'],
+        3: ['qua', 'quarta'],
+        4: ['qui', 'quinta'],
+        5: ['sex', 'sexta']
+      };
+
+      const allDayCheckboxes = Array.from(document.querySelectorAll('input[type="checkbox"]')).filter(function (input) {
+        const tokens = [input.value, input.name, input.id]
+          .filter(Boolean)
+          .map(normalize);
+        return ['seg', 'segunda', 'ter', 'terca', 'terça', 'qua', 'quarta', 'qui', 'quinta', 'sex', 'sexta'].some(function (alias) {
+          return tokens.includes(alias);
+        });
+      });
+      if (!allDayCheckboxes.length || allDayCheckboxes.some(function (input) { return input.checked; })) {
+        return;
+      }
+
+      const selectedDateInput = document.querySelector('input[type="date"]');
+      const baseDate = selectedDateInput && selectedDateInput.value
+        ? new Date(selectedDateInput.value + 'T12:00:00')
+        : new Date();
+      const weekday = baseDate.getDay();
+      const aliases = dayAliases[weekday];
+      if (!aliases) {
+        return;
+      }
+
+      const targetCheckbox = allDayCheckboxes.find(function (input) {
+        const tokens = [input.value, input.name, input.id]
+          .filter(Boolean)
+          .map(normalize);
+        return aliases.some(function (alias) {
+          return tokens.includes(alias);
+        });
+      });
+
+      if (targetCheckbox) {
+        targetCheckbox.checked = true;
+        targetCheckbox.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    });
+  </script>
   </body>
 </html>

@@ -78,7 +78,7 @@
       <section class="cardapio">
         <h2>Cardápio de hoje</h2>
         <p>{{ cardapio_hoje }}</p>
-        <div class="galeria-flutuante" data-galeria data-intervalo="4800">
+        <div class="galeria-flutuante" data-galeria data-intervalo="2000">
           {% if cardapio_imagem %}
           <div class="galeria-slide active">
             <div class="galeria-card real">
@@ -127,7 +127,7 @@
                 </div>
                 <div class="galeria-legenda">
                   <strong>Teste de carrossel</strong>
-                  <span>O tempo agora esta mais lento e a troca ficou menos brusca.</span>
+                  <span>O carrossel agora troca a cada 2 segundos enquanto aguardamos as fotos reais.</span>
                 </div>
               </div>
             </div>
@@ -140,7 +140,7 @@
       {% elif cardapio_imagem %}
       <section class="cardapio">
         <h2>Cardápio de hoje</h2>
-        <div class="galeria-flutuante" data-galeria data-intervalo="4800">
+        <div class="galeria-flutuante" data-galeria data-intervalo="2000">
           <div class="galeria-slide active">
             <div class="galeria-card real">
               <img src="{{ url_for('main.cardapio_imagem', nome_arquivo=cardapio_imagem) }}" alt="Imagem ilustrativa do cardápio do dia" />

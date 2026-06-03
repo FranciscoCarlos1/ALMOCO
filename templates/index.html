@@ -12,7 +12,15 @@
       h1 { margin-top: 0; font-size: 1.5rem; }
       p { color: #444; }
       label { font-weight: 600; display: block; margin-top: 14px; min-width: 0; }
-      input, select { width: 100%; padding: 10px; border: 1px solid #cfd6dd; border-radius: 8px; margin-top: 6px; box-sizing: border-box; min-width: 0; }
+      input { width: 100%; padding: 10px; border: 1px solid #cfd6dd; border-radius: 8px; margin-top: 6px; box-sizing: border-box; min-width: 0; }
+      .turma-picker { position: relative; margin-top: 6px; }
+      .turma-display { padding-right: 42px; background: #fff; cursor: pointer; }
+      .turma-toggle { position: absolute; top: 50%; right: 12px; transform: translateY(-50%); border: 0; background: transparent; color: #4b5563; font-size: 1rem; cursor: pointer; width: auto; margin: 0; padding: 0; }
+      .turma-options { display: none; position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 20; background: #fff; border: 1px solid #cfd6dd; border-radius: 10px; box-shadow: 0 10px 24px rgba(15, 23, 42, .14); max-height: 240px; overflow-y: auto; padding: 6px; }
+      .turma-options.open { display: block; }
+      .turma-option { width: 100%; margin: 0; padding: 10px 12px; border: 0; border-radius: 8px; background: transparent; color: #111; text-align: left; font-size: .98rem; }
+      .turma-option:hover,
+      .turma-option:focus-visible { background: #eef3ff; outline: none; }
       button { margin-top: 20px; width: 100%; padding: 12px; background: #198754; color: #fff; border: 0; border-radius: 8px; font-size: 1rem; cursor: pointer; }
       button:hover { background: #146c43; }
       .alert { padding: 10px 12px; border-radius: 8px; margin-top: 12px; }
@@ -66,12 +74,15 @@
         <input id="nome" name="nome" type="text" required />
 
         <label for="turma">Turma</label>
-        <select id="turma" name="turma" required>
-          <option value="">Selecione...</option>
-          {% for turma in turmas %}
-          <option value="{{ turma }}">{{ 'SERVIDOR' if turma == 'SERVIDORES' else turma }}</option>
-          {% endfor %}
-        </select>
+        <div class="turma-picker">
+          <input id="turma" class="turma-display" name="turma" type="text" placeholder="Selecione..." readonly required aria-haspopup="listbox" aria-expanded="false" autocomplete="off" />
+          <button type="button" class="turma-toggle" aria-label="Abrir lista de turmas">▼</button>
+          <div class="turma-options" id="turma-options" role="listbox" aria-label="Lista de turmas">
+            {% for turma in turmas %}
+            <button type="button" class="turma-option" data-value="{{ turma }}">{{ 'SERVIDOR' if turma == 'SERVIDORES' else turma }}</button>
+            {% endfor %}
+          </div>
+        </div>
 
         <div class="dia-atual">
           {% if dia_atual == 'seg' %}Hoje: Segunda-feira{% elif dia_atual == 'ter' %}Hoje: Terça-feira{% elif dia_atual == 'qua' %}Hoje: Quarta-feira{% elif dia_atual == 'qui' %}Hoje: Quinta-feira{% elif dia_atual == 'sex' %}Hoje: Sexta-feira{% else %}Hoje não é um dia letivo para seleção automática.{% endif %}
@@ -81,5 +92,45 @@
       </form>
 
     </main>
+    <script>
+      const turmaInput = document.getElementById("turma");
+      const turmaToggle = document.querySelector(".turma-toggle");
+      const turmaOptions = document.getElementById("turma-options");
+      const turmaButtons = Array.from(document.querySelectorAll(".turma-option"));
+
+      const toggleTurmas = function (forceOpen) {
+        const shouldOpen = typeof forceOpen === "boolean" ? forceOpen : !turmaOptions.classList.contains("open");
+        turmaOptions.classList.toggle("open", shouldOpen);
+        turmaInput.setAttribute("aria-expanded", shouldOpen ? "true" : "false");
+      };
+
+      turmaInput.addEventListener("click", function () {
+        toggleTurmas();
+      });
+
+      turmaToggle.addEventListener("click", function () {
+        toggleTurmas();
+      });
+
+      turmaButtons.forEach(function (button) {
+        button.addEventListener("click", function () {
+          turmaInput.value = button.dataset.value;
+          turmaInput.dispatchEvent(new Event("input", { bubbles: true }));
+          toggleTurmas(false);
+        });
+      });
+
+      document.addEventListener("click", function (event) {
+        if (!event.target.closest(".turma-picker")) {
+          toggleTurmas(false);
+        }
+      });
+
+      document.addEventListener("keydown", function (event) {
+        if (event.key === "Escape") {
+          toggleTurmas(false);
+        }
+      });
+    </script>
   </body>
 </html>

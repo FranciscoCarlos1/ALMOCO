@@ -21,7 +21,7 @@ ADMIN_TOKEN = os.getenv("ALMOCO_ADMIN_TOKEN", "ifc-sbs")
 ALLOWED_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
 
 TURMAS = [
-    "TIN I", "TIN II", "TIN III",
+    "TIN I A", "TIN I B", "TIN II", "TIN III",
     "TAI I", "TAI II", "TAI III",
     "TST I", "TST II", "TST III", "SERVIDORES"
 ]

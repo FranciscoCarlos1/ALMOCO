@@ -34,11 +34,35 @@
       .cardapio h2 { margin: 0 0 8px; font-size: 1.05rem; color: #7a4b00; }
       .cardapio p { margin: 0; white-space: pre-line; }
       .cardapio img { width: 100%; margin-top: 12px; border-radius: 10px; object-fit: cover; max-height: 260px; }
+      .galeria-flutuante { position: relative; margin-top: 14px; min-height: 260px; }
+      .galeria-slide { position: absolute; inset: 0; display: grid; align-items: stretch; opacity: 0; transform: translateY(12px) scale(.97); transition: opacity .5s ease, transform .5s ease; pointer-events: none; }
+      .galeria-slide.active { opacity: 1; transform: translateY(0) scale(1); }
+      .galeria-card { position: relative; overflow: hidden; border-radius: 18px; min-height: 260px; box-shadow: 0 18px 40px rgba(122, 75, 0, .16); animation: flutuar 5s ease-in-out infinite; }
+      .galeria-card img { width: 100%; height: 100%; margin-top: 0; object-fit: cover; max-height: none; }
+      .galeria-card::after { content: ""; position: absolute; inset: auto 14px 14px auto; width: 86px; height: 86px; border-radius: 18px; background: rgba(255,255,255,.18); filter: blur(2px); }
+      .galeria-legenda { position: absolute; left: 16px; right: 16px; bottom: 16px; z-index: 1; padding: 12px 14px; border-radius: 14px; background: rgba(17, 24, 39, .56); color: #fff4db; backdrop-filter: blur(6px); }
+      .galeria-legenda strong { display: block; font-size: 1rem; color: #fff; }
+      .galeria-legenda span { display: block; margin-top: 4px; font-size: .88rem; line-height: 1.35; }
+      .galeria-card.institucional { background: linear-gradient(135deg, #f0fff4, #d9f7e4 45%, #eef8ff); border: 1px solid rgba(33, 104, 53, .14); }
+      .galeria-card.institucional::before { content: ""; position: absolute; inset: 18px; border-radius: 16px; background: linear-gradient(135deg, rgba(25,135,84,.16), rgba(255,255,255,.92)); }
+      .galeria-card.institucional .marca { position: absolute; top: 22px; right: 22px; width: 110px; opacity: .22; }
+      .galeria-conteudo { position: relative; z-index: 1; display: flex; flex-direction: column; justify-content: space-between; height: 100%; padding: 24px; color: #163020; }
+      .galeria-conteudo strong { font-size: 1.15rem; }
+      .galeria-conteudo p { margin: 8px 0 0; color: #33543d; line-height: 1.45; }
+      .galeria-bolinhas { display: flex; gap: 8px; justify-content: center; margin-top: 12px; }
+      .galeria-bolinha { width: 9px; height: 9px; border-radius: 999px; background: #d0d7de; transition: transform .25s ease, background .25s ease; }
+      .galeria-bolinha.active { background: #198754; transform: scale(1.15); }
+      @keyframes flutuar {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-6px); }
+      }
       @media (max-width: 600px) {
         .container { width: min(100% - 16px, 620px); margin: 12px auto; padding: 18px 14px; border-radius: 0; }
         .logo { max-width: 165px; }
         h1 { font-size: 1.3rem; }
         .cardapio { padding: 12px; }
+        .galeria-flutuante, .galeria-card { min-height: 220px; }
+        .galeria-conteudo { padding: 18px; }
       }
     </style>
   </head>
@@ -51,14 +75,81 @@
       <section class="cardapio">
         <h2>Cardápio de hoje</h2>
         <p>{{ cardapio_hoje }}</p>
-        {% if cardapio_imagem %}
-        <img src="{{ url_for('main.cardapio_imagem', nome_arquivo=cardapio_imagem) }}" alt="Imagem ilustrativa do cardápio do dia" />
-        {% endif %}
+        <div class="galeria-flutuante" data-galeria>
+          {% if cardapio_imagem %}
+          <div class="galeria-slide active">
+            <div class="galeria-card">
+              <img src="{{ url_for('main.cardapio_imagem', nome_arquivo=cardapio_imagem) }}" alt="Imagem ilustrativa do cardápio do dia" />
+              <div class="galeria-legenda">
+                <strong>Cardápio do dia</strong>
+                <span>Foto atual do almoço servida junto com a vitrine do portal.</span>
+              </div>
+            </div>
+          </div>
+          {% endif %}
+          <div class="galeria-slide {% if not cardapio_imagem %}active{% endif %}">
+            <div class="galeria-card institucional">
+              <img class="marca" src="/static/logo_ifc_horizontal_SaoBentodosul.png" alt="" />
+              <div class="galeria-conteudo">
+                <div>
+                  <strong>Campus Sao Bento do Sul</strong>
+                  <p>Teste visual para uma vitrine com imagens flutuantes no portal do restaurante.</p>
+                </div>
+                <div class="galeria-legenda">
+                  <strong>Ambiente institucional</strong>
+                  <span>Podemos trocar este card por uma foto real do campus assim que ela estiver no projeto.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="galeria-slide">
+            <div class="galeria-card institucional">
+              <img class="marca" src="/static/logo_ifc_horizontal_SaoBentodosul.png" alt="" />
+              <div class="galeria-conteudo">
+                <div>
+                  <strong>Espaco do refeitorio</strong>
+                  <p>Mais um quadro flutuante para simular a passagem de fotos uma apos a outra.</p>
+                </div>
+                <div class="galeria-legenda">
+                  <strong>Teste de carrossel</strong>
+                  <span>Se voce gostar da ideia, eu substituo esses cards por fotos reais do espaco.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="galeria-bolinhas" data-galeria-bolinhas></div>
       </section>
       {% elif cardapio_imagem %}
       <section class="cardapio">
         <h2>Cardápio de hoje</h2>
-        <img src="{{ url_for('main.cardapio_imagem', nome_arquivo=cardapio_imagem) }}" alt="Imagem ilustrativa do cardápio do dia" />
+        <div class="galeria-flutuante" data-galeria>
+          <div class="galeria-slide active">
+            <div class="galeria-card">
+              <img src="{{ url_for('main.cardapio_imagem', nome_arquivo=cardapio_imagem) }}" alt="Imagem ilustrativa do cardápio do dia" />
+              <div class="galeria-legenda">
+                <strong>Cardápio do dia</strong>
+                <span>Imagem atual usada como primeiro slide do teste.</span>
+              </div>
+            </div>
+          </div>
+          <div class="galeria-slide">
+            <div class="galeria-card institucional">
+              <img class="marca" src="/static/logo_ifc_horizontal_SaoBentodosul.png" alt="" />
+              <div class="galeria-conteudo">
+                <div>
+                  <strong>Campus Sao Bento do Sul</strong>
+                  <p>Card institucional para demonstrar a transicao entre imagens no topo.</p>
+                </div>
+                <div class="galeria-legenda">
+                  <strong>Rotacao de fotos</strong>
+                  <span>Depois eu troco por fotos reais se voce aprovar o efeito.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="galeria-bolinhas" data-galeria-bolinhas></div>
       </section>
       {% endif %}
 
@@ -133,6 +224,47 @@
         if (event.key === "Escape") {
           toggleTurmas(false);
         }
+      });
+
+      const galerias = Array.from(document.querySelectorAll("[data-galeria]"));
+
+      galerias.forEach(function (galeria) {
+        const slides = Array.from(galeria.querySelectorAll(".galeria-slide"));
+        const bolinhas = galeria.nextElementSibling && galeria.nextElementSibling.matches("[data-galeria-bolinhas]")
+          ? galeria.nextElementSibling
+          : null;
+        let slideAtual = slides.findIndex(function (slide) {
+          return slide.classList.contains("active");
+        });
+
+        if (slideAtual < 0) {
+          slideAtual = 0;
+          slides[0].classList.add("active");
+        }
+
+        if (bolinhas) {
+          slides.forEach(function (_, index) {
+            const bolinha = document.createElement("span");
+            bolinha.className = "galeria-bolinha" + (index === slideAtual ? " active" : "");
+            bolinhas.appendChild(bolinha);
+          });
+        }
+
+        if (slides.length < 2) {
+          return;
+        }
+
+        window.setInterval(function () {
+          slides[slideAtual].classList.remove("active");
+          if (bolinhas) {
+            bolinhas.children[slideAtual].classList.remove("active");
+          }
+          slideAtual = (slideAtual + 1) % slides.length;
+          slides[slideAtual].classList.add("active");
+          if (bolinhas) {
+            bolinhas.children[slideAtual].classList.add("active");
+          }
+        }, 3500);
       });
     </script>
   </body>

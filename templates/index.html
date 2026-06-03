@@ -8,8 +8,8 @@
       * { box-sizing: border-box; }
       body { font-family: Arial, sans-serif; margin: 0; background: #f4f6f8; }
       .container { width: min(100% - 24px, 620px); margin: 24px auto; background: #fff; padding: 24px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,.08); }
-      .logo { width: 100%; max-width: 420px; display: block; margin: 0 auto 16px auto; }
-      h1 { margin-top: 0; font-size: 1.5rem; }
+      .logo { width: 100%; max-width: 390px; display: block; margin: 0 auto 12px auto; }
+      h1 { margin-top: 0; margin-bottom: 10px; font-size: 1.5rem; text-align: center; }
       p { color: #444; }
       label { font-weight: 600; display: block; margin-top: 14px; min-width: 0; }
       input { width: 100%; padding: 10px; border: 1px solid #cfd6dd; border-radius: 8px; margin-top: 6px; box-sizing: border-box; min-width: 0; }
@@ -36,7 +36,7 @@
       .cardapio img { width: 100%; margin-top: 12px; border-radius: 10px; object-fit: cover; max-height: 260px; }
       @media (max-width: 600px) {
         .container { width: min(100% - 16px, 620px); margin: 12px auto; padding: 18px 14px; border-radius: 0; }
-        .logo { max-width: 180px; }
+        .logo { max-width: 165px; }
         h1 { font-size: 1.3rem; }
         .cardapio { padding: 12px; }
       }
@@ -45,7 +45,7 @@
   <body>
     <main class="container">
       <img class="logo" src="/static/logo_ifc_horizontal_SaoBentodosul.png" onerror="this.onerror=null;this.src='/static/logo-ifc.svg';" alt="Instituto Federal Catarinense" />
-      <h1>Intenção de Almoço - IFC SBS</h1>
+      <h1>Registrar almoço</h1>
 
       {% if cardapio_hoje %}
       <section class="cardapio">

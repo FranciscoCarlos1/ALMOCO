@@ -1,4 +1,5 @@
 from io import BytesIO
+from pathlib import Path
 
 from flask import Blueprint, render_template, request, redirect, url_for, jsonify, abort, send_file
 from datetime import date, datetime, timedelta
@@ -13,6 +14,7 @@ TURMAS = [
 ]
 INTENCOES = ["SIM", "NAO"]
 DIAS_SEMANA = ["seg", "ter", "qua", "qui", "sex"]
+EXTENSOES_IMAGEM = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
 
 
 def parse_iso_date(value: str) -> date:
@@ -21,6 +23,18 @@ def parse_iso_date(value: str) -> date:
 
 def week_start(given_date: date) -> date:
     return given_date - timedelta(days=given_date.weekday())
+
+
+def listar_galeria_imagens() -> list[str]:
+    pasta_galeria = Path(__file__).resolve().parent / "static" / "galeria"
+    if not pasta_galeria.exists():
+        return []
+
+    imagens = []
+    for arquivo in sorted(pasta_galeria.iterdir()):
+        if arquivo.is_file() and arquivo.suffix.lower() in EXTENSOES_IMAGEM:
+            imagens.append(f"galeria/{arquivo.name}")
+    return imagens
 
 @bp_main.route("/")
 def index():
@@ -48,6 +62,7 @@ def index():
         dia_atual=dia_atual,
         cardapio_hoje=cardapio["descricao"] if cardapio else None,
         cardapio_imagem=hoje if cardapio and cardapio["imagem_blob"] else None,
+        galeria_imagens=listar_galeria_imagens(),
     )
 
 

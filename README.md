@@ -47,6 +47,38 @@ Aluno Exemplo,2026001,TIN I
 
 Aceita também CSV separado por `;`.
 
+Campos opcionais para biometria:
+
+```csv
+nome,matricula,turma,cpf,identificador_biometrico
+Aluno Exemplo,2026001,TIN I A,12345678900,BIO12345
+```
+
+O sistema importa `cpf` e `identificador_biometrico` para permitir integração com leitor biométrico.
+
+## Integração biométrica
+O backend expõe uma rota para registrar o almoço do dia a partir da leitura biométrica:
+
+`POST /biometria/registrar`
+
+Payload JSON de exemplo:
+
+```json
+{
+	"token": "SEU_TOKEN_BIOMETRIA",
+	"identificador_biometrico": "BIO12345",
+	"data_almoco": "2026-07-03"
+}
+```
+
+Também aceita localizar o aluno por `matricula` ou `cpf`.
+
+Variáveis de ambiente:
+- `ALMOCO_ADMIN_TOKEN`
+- `ALMOCO_BIOMETRIA_TOKEN` (opcional; se não for definida, a rota usa o mesmo token do admin)
+
+A resposta retorna `nome`, `turma`, `matricula` e `cpf` do aluno contabilizado.
+
 ## 3) Segurança básica
 Troque o token padrão do painel:
 

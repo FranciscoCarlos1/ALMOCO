@@ -6,7 +6,7 @@ from urllib.request import urlopen
 
 from flask import Blueprint, render_template, request, abort, redirect, url_for, Response
 from datetime import date, datetime, timedelta
-from openpyxl import Workbook
+from openpyxl import Workbook, load_workbook
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import getSampleStyleSheet
@@ -29,6 +29,37 @@ TURMAS = [
 
 def parse_iso_date(value: str) -> date:
     return datetime.strptime(value, "%Y-%m-%d").date()
+
+
+def limpar_cpf(valor: str) -> str:
+    return "".join(caractere for caractere in valor if caractere.isdigit())
+
+
+def normalize_header(value: object) -> str:
+    texto = " ".join(str(value or "").strip().lower().split())
+    replacements = {
+        "á": "a",
+        "à": "a",
+        "â": "a",
+        "ã": "a",
+        "é": "e",
+        "ê": "e",
+        "í": "i",
+        "ó": "o",
+        "ô": "o",
+        "õ": "o",
+        "ú": "u",
+        "ç": "c",
+    }
+    for original, novo in replacements.items():
+        texto = texto.replace(original, novo)
+    return texto
+
+
+def as_clean_text(value: object) -> str:
+    if value is None:
+        return ""
+    return str(value).strip()
 
 
 def week_start(given_date: date) -> date:
@@ -354,15 +385,17 @@ def admin():
         data_filtro=data_filtro,
         periodo=periodo,
         intencao_filtro=intencao_filtro,
-        importado=False,
-        import_error=None,
-        importado_quadro=False,
-        import_quadro_error=None,
-        backup_restaurado=False,
-        backup_restore_file=None,
-        backup_restore_error=None,
-        backup_manual=False,
-        backup_manual_error=None,
+        importado=request.args.get("importado") == "1",
+        import_error=request.args.get("import_error"),
+        biometria_salva=request.args.get("biometria_salva") == "1",
+        biometria_error=request.args.get("biometria_error"),
+        importado_quadro=request.args.get("importado_quadro") == "1",
+        import_quadro_error=request.args.get("import_quadro_error"),
+        backup_restaurado=request.args.get("backup_restaurado") == "1",
+        backup_restore_file=request.args.get("backup_restore_file"),
+        backup_restore_error=request.args.get("backup_restore_error"),
+        backup_manual=request.args.get("backup_manual") == "1",
+        backup_manual_error=request.args.get("backup_manual_error"),
         total_sim=total_sim,
         total_nao=total_nao,
         total_geral=total_geral,
@@ -410,6 +443,46 @@ def _obter_cardapio(data_filtro: str):
         ).fetchone()
 
 
+def _buscar_aluno_por_cadastro(conn, matricula: str, cpf: str, identificador_biometrico: str):
+    if matricula:
+        aluno = conn.execute(
+            """
+            SELECT matricula, cpf, identificador_biometrico
+            FROM alunos
+            WHERE matricula = ?
+            """,
+            (matricula,),
+        ).fetchone()
+        if aluno:
+            return aluno
+
+    if cpf:
+        aluno = conn.execute(
+            """
+            SELECT matricula, cpf, identificador_biometrico
+            FROM alunos
+            WHERE cpf = ?
+            """,
+            (cpf,),
+        ).fetchone()
+        if aluno:
+            return aluno
+
+    if identificador_biometrico:
+        aluno = conn.execute(
+            """
+            SELECT matricula, cpf, identificador_biometrico
+            FROM alunos
+            WHERE identificador_biometrico = ?
+            """,
+            (identificador_biometrico,),
+        ).fetchone()
+        if aluno:
+            return aluno
+
+    return None
+
+
 def _salvar_imagem_cardapio(arquivo) -> tuple[bytes, str]:
     nome_arquivo = arquivo.filename or ""
     extensao = os.path.splitext(nome_arquivo)[1].lower()
@@ -424,6 +497,117 @@ def _salvar_imagem_cardapio(arquivo) -> tuple[bytes, str]:
         ".gif": "image/gif",
     }[extensao]
     return arquivo.read(), mime_type
+
+
+@bp_admin.post("/admin/importar_alunos")
+def importar_alunos():
+    token = request.form.get("token", "")
+    _validar_token(token)
+
+    arquivo = request.files.get("arquivo_csv")
+    data_filtro = request.form.get("data", "")
+
+    if not arquivo or not arquivo.filename:
+        return redirect(url_for("admin.admin", token=token, data=data_filtro, import_error="Selecione um arquivo CSV ou XLSX."))
+
+    nome_arquivo = (arquivo.filename or "").lower()
+    rows_for_import: list[dict[str, str]] = []
+
+    try:
+        if nome_arquivo.endswith(".xlsx"):
+            workbook = load_workbook(arquivo.stream, data_only=True)
+            sheet = workbook.active
+            raw_rows = list(sheet.iter_rows(values_only=True))
+
+            if not raw_rows:
+                return redirect(url_for("admin.admin", token=token, data=data_filtro, import_error="Planilha XLSX vazia."))
+
+            header_original = [as_clean_text(col) for col in raw_rows[0]]
+            if not any(header_original):
+                return redirect(url_for("admin.admin", token=token, data=data_filtro, import_error="XLSX sem cabeçalho."))
+
+            header_normalized = [normalize_header(col) for col in header_original]
+            for values in raw_rows[1:]:
+                item = {
+                    header_normalized[i]: as_clean_text(values[i])
+                    for i in range(min(len(header_normalized), len(values)))
+                }
+                rows_for_import.append(item)
+        else:
+            payload = arquivo.stream.read().decode("utf-8-sig")
+            sample = payload[:2048]
+            dialect = csv.Sniffer().sniff(sample, delimiters=",;") if sample.strip() else csv.get_dialect("excel")
+            reader = csv.DictReader(StringIO(payload), dialect=dialect)
+
+            if not reader.fieldnames:
+                return redirect(url_for("admin.admin", token=token, data=data_filtro, import_error="CSV sem cabeçalho."))
+
+            header_normalized = [normalize_header(item) for item in reader.fieldnames]
+            for row in reader:
+                item = {
+                    header_normalized[i]: as_clean_text(row.get(reader.fieldnames[i]))
+                    for i in range(len(header_normalized))
+                }
+                rows_for_import.append(item)
+    except Exception:
+        return redirect(url_for("admin.admin", token=token, data=data_filtro, import_error="Não foi possível ler o arquivo (use CSV ou XLSX válido)."))
+
+    if not rows_for_import:
+        return redirect(url_for("admin.admin", token=token, data=data_filtro, import_error="Arquivo sem dados para importar."))
+
+    all_keys: set[str] = set()
+    for row in rows_for_import:
+        all_keys.update(row.keys())
+
+    nome_key = next((h for h in ["nome", "aluno", "nome completo"] if h in all_keys), None)
+    matricula_key = next((h for h in ["matricula", "matricula aluno", "ra"] if h in all_keys), None)
+    turma_key = next((h for h in ["turma", "serie", "classe"] if h in all_keys), None)
+    cpf_key = next((h for h in ["cpf", "cpf aluno"] if h in all_keys), None)
+    biometria_key = next((h for h in ["identificador biometrico", "identificador_biometrico", "biometria", "id biometrico", "codigo biometrico"] if h in all_keys), None)
+
+    if not nome_key or not matricula_key or not turma_key:
+        return redirect(
+            url_for(
+                "admin.admin",
+                token=token,
+                data=data_filtro,
+                import_error="Arquivo precisa das colunas nome, matricula e turma. CPF e identificador biométrico são opcionais.",
+            )
+        )
+
+    importados = 0
+    with get_conn() as conn:
+        for row in rows_for_import:
+            nome = as_clean_text(row.get(nome_key))
+            matricula = as_clean_text(row.get(matricula_key))
+            turma = as_clean_text(row.get(turma_key))
+            cpf = limpar_cpf(as_clean_text(row.get(cpf_key))) if cpf_key else ""
+            identificador_biometrico = as_clean_text(row.get(biometria_key)) if biometria_key else ""
+
+            if not nome or not matricula or turma not in TURMAS:
+                continue
+
+            conn.execute(
+                """
+                INSERT INTO alunos (matricula, nome, turma, cpf, identificador_biometrico)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(matricula)
+                DO UPDATE SET
+                    nome = excluded.nome,
+                    turma = excluded.turma,
+                    cpf = COALESCE(excluded.cpf, alunos.cpf),
+                    identificador_biometrico = COALESCE(excluded.identificador_biometrico, alunos.identificador_biometrico),
+                    atualizado_em = CURRENT_TIMESTAMP
+                """,
+                (matricula, nome, turma, cpf or None, identificador_biometrico or None),
+            )
+            importados += 1
+        conn.commit()
+
+    if importados == 0:
+        return redirect(url_for("admin.admin", token=token, data=data_filtro, import_error="Nenhuma linha válida foi importada. Verifique turma, matrícula e nome."))
+
+    return redirect(url_for("admin.admin", token=token, data=data_filtro, importado=1))
 
 
 @bp_admin.get("/export.csv")
@@ -798,3 +982,73 @@ def painel_cardapio():
         cardapio_salvo=request.args.get("salvo") == "1",
         erro_cardapio=None,
     )
+
+
+@bp_admin.post("/admin/aluno-biometria")
+def salvar_aluno_biometria():
+    token = request.form.get("token", "")
+    _validar_token(token)
+
+    data_filtro = request.form.get("data", "").strip() or date.today().isoformat()
+    nome = request.form.get("nome", "").strip()
+    matricula = request.form.get("matricula", "").strip()
+    turma = request.form.get("turma", "").strip()
+    cpf = limpar_cpf(request.form.get("cpf", "").strip())
+    identificador_biometrico = request.form.get("identificador_biometrico", "").strip()
+
+    if not nome or not matricula or not turma:
+        return redirect(url_for(
+            "admin.admin",
+            token=token,
+            data=data_filtro,
+            biometria_error="Informe nome, matrícula e turma.",
+        ))
+
+    if turma not in TURMAS:
+        return redirect(url_for(
+            "admin.admin",
+            token=token,
+            data=data_filtro,
+            biometria_error="Selecione uma turma válida.",
+        ))
+
+    if not cpf and not identificador_biometrico:
+        return redirect(url_for(
+            "admin.admin",
+            token=token,
+            data=data_filtro,
+            biometria_error="Informe CPF ou identificador biométrico para integrar a biometria.",
+        ))
+
+    with get_conn() as conn:
+        existente = _buscar_aluno_por_cadastro(conn, matricula, cpf, identificador_biometrico)
+        if existente and existente["matricula"] != matricula:
+            return redirect(url_for(
+                "admin.admin",
+                token=token,
+                data=data_filtro,
+                biometria_error="CPF ou identificador biométrico já está vinculado a outro aluno.",
+            ))
+
+        conn.execute(
+            """
+            INSERT INTO alunos (matricula, nome, turma, cpf, identificador_biometrico)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(matricula)
+            DO UPDATE SET
+                nome = excluded.nome,
+                turma = excluded.turma,
+                cpf = excluded.cpf,
+                identificador_biometrico = excluded.identificador_biometrico,
+                atualizado_em = CURRENT_TIMESTAMP
+            """,
+            (matricula, nome, turma, cpf or None, identificador_biometrico or None),
+        )
+        conn.commit()
+
+    return redirect(url_for(
+        "admin.admin",
+        token=token,
+        data=data_filtro,
+        biometria_salva=1,
+    ))

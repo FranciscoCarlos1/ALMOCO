@@ -56,6 +56,18 @@ MIGRATIONS = {
             atualizado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (turma, data_almoco)
         );
+    """,
+    10: """
+        ALTER TABLE alunos ADD COLUMN cpf TEXT;
+    """,
+    11: """
+        ALTER TABLE alunos ADD COLUMN identificador_biometrico TEXT;
+    """,
+    12: """
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_alunos_cpf_unique ON alunos (cpf);
+    """,
+    13: """
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_alunos_biometria_unique ON alunos (identificador_biometrico);
     """
 }
 

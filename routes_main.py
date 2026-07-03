@@ -1,5 +1,6 @@
 from io import BytesIO
 from pathlib import Path
+import os
 
 from flask import Blueprint, render_template, request, redirect, url_for, jsonify, abort, send_file
 from datetime import date, datetime, timedelta
@@ -23,6 +24,54 @@ def parse_iso_date(value: str) -> date:
 
 def week_start(given_date: date) -> date:
     return given_date - timedelta(days=given_date.weekday())
+
+
+def obter_biometria_token() -> str:
+    return os.getenv("ALMOCO_BIOMETRIA_TOKEN") or os.getenv("ALMOCO_ADMIN_TOKEN", "ifc-sbs")
+
+
+def limpar_cpf(valor: str) -> str:
+    return "".join(caractere for caractere in valor if caractere.isdigit())
+
+
+def buscar_aluno_por_identificador(conn, matricula: str, cpf: str, identificador_biometrico: str):
+    if identificador_biometrico:
+        aluno = conn.execute(
+            """
+            SELECT nome, matricula, turma, cpf, identificador_biometrico
+            FROM alunos
+            WHERE identificador_biometrico = ?
+            """,
+            (identificador_biometrico,),
+        ).fetchone()
+        if aluno:
+            return aluno
+
+    if matricula:
+        aluno = conn.execute(
+            """
+            SELECT nome, matricula, turma, cpf, identificador_biometrico
+            FROM alunos
+            WHERE matricula = ?
+            """,
+            (matricula,),
+        ).fetchone()
+        if aluno:
+            return aluno
+
+    if cpf:
+        aluno = conn.execute(
+            """
+            SELECT nome, matricula, turma, cpf, identificador_biometrico
+            FROM alunos
+            WHERE cpf = ?
+            """,
+            (cpf,),
+        ).fetchone()
+        if aluno:
+            return aluno
+
+    return None
 
 
 def listar_galeria_imagens() -> list[str]:
@@ -98,7 +147,7 @@ def buscar_aluno():
     with get_conn() as conn:
         aluno = conn.execute(
             """
-            SELECT nome, matricula, turma
+            SELECT nome, matricula, turma, cpf
             FROM alunos
             WHERE matricula = ?
             """,
@@ -111,6 +160,64 @@ def buscar_aluno():
         "nome": aluno["nome"],
         "matricula": aluno["matricula"],
         "turma": aluno["turma"],
+        "cpf": aluno["cpf"],
+    })
+
+
+@bp_main.post("/biometria/registrar")
+def registrar_biometria():
+    payload = request.get_json(silent=True) or request.form
+    token = (payload.get("token") or request.args.get("token") or "").strip()
+    if token != obter_biometria_token():
+        return jsonify({"ok": False, "erro": "Token biométrico inválido."}), 403
+
+    identificador_biometrico = (payload.get("identificador_biometrico") or "").strip()
+    matricula = (payload.get("matricula") or "").strip()
+    cpf = limpar_cpf((payload.get("cpf") or "").strip())
+    data_almoco = (payload.get("data_almoco") or date.today().isoformat()).strip()
+
+    if not any([identificador_biometrico, matricula, cpf]):
+        return jsonify({
+            "ok": False,
+            "erro": "Informe identificador_biometrico, matricula ou cpf para localizar o aluno.",
+        }), 400
+
+    try:
+        data_registro = parse_iso_date(data_almoco)
+    except ValueError:
+        return jsonify({"ok": False, "erro": "Data inválida."}), 400
+
+    with get_conn() as conn:
+        aluno = buscar_aluno_por_identificador(conn, matricula, cpf, identificador_biometrico)
+        if not aluno:
+            return jsonify({"ok": False, "erro": "Aluno não encontrado para os dados informados."}), 404
+
+        conn.execute(
+            """
+            INSERT INTO respostas (nome, matricula, turma, data_almoco, intencao)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(matricula, data_almoco)
+            DO UPDATE SET
+                nome = excluded.nome,
+                turma = excluded.turma,
+                intencao = 'SIM',
+                criado_em = CURRENT_TIMESTAMP
+            """,
+            (aluno["nome"], aluno["matricula"], aluno["turma"], data_registro.isoformat(), "SIM"),
+        )
+        conn.commit()
+
+    return jsonify({
+        "ok": True,
+        "mensagem": "Almoço registrado com sucesso.",
+        "data_almoco": data_registro.isoformat(),
+        "aluno": {
+            "nome": aluno["nome"],
+            "turma": aluno["turma"],
+            "matricula": aluno["matricula"],
+            "cpf": aluno["cpf"],
+            "identificador_biometrico": aluno["identificador_biometrico"],
+        },
     })
 
 

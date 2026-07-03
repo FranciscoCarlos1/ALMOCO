@@ -56,6 +56,14 @@
       <div class="alert err">{{ import_error }}</div>
       {% endif %}
 
+      {% if biometria_salva %}
+      <div class="alert ok">Cadastro biométrico do aluno salvo com sucesso.</div>
+      {% endif %}
+
+      {% if biometria_error %}
+      <div class="alert err">{{ biometria_error }}</div>
+      {% endif %}
+
       {% if importado_quadro %}
       <div class="alert ok">Quadro semanal importado com sucesso.</div>
       {% endif %}
@@ -108,10 +116,27 @@
       <form class="filtro" method="post" action="/admin/importar_alunos" enctype="multipart/form-data">
         <input type="hidden" name="token" value="{{ token }}" />
         <input type="hidden" name="data" value="{{ data_filtro }}" />
-        <label for="arquivo_csv">Importar alunos (CSV/XLSX: nome,matricula,turma):</label>
-        <span>Modelo de cabeçalho: <strong>nome,matricula,turma</strong></span>
+        <label for="arquivo_csv">Importar alunos (CSV/XLSX):</label>
+        <span>Modelo de cabeçalho: <strong>nome,matricula,turma</strong> e opcionalmente <strong>cpf,identificador_biometrico</strong></span>
         <input type="file" id="arquivo_csv" name="arquivo_csv" accept=".csv,.xlsx" required />
         <button type="submit">Importar arquivo</button>
+      </form>
+
+      <form class="filtro" method="post" action="/admin/aluno-biometria">
+        <input type="hidden" name="token" value="{{ token }}" />
+        <input type="hidden" name="data" value="{{ data_filtro }}" />
+        <label for="nome_biometria">Cadastro biométrico do aluno:</label>
+        <input type="text" id="nome_biometria" name="nome" placeholder="Nome completo" required />
+        <input type="text" id="matricula_biometria" name="matricula" placeholder="Matrícula" required />
+        <select id="turma_biometria" name="turma" required>
+          <option value="">Selecione a turma...</option>
+          {% for turma in resumo.keys() %}
+          <option value="{{ turma }}">{{ 'SERVIDOR' if turma == 'SERVIDORES' else turma }}</option>
+          {% endfor %}
+        </select>
+        <input type="text" id="cpf_biometria" name="cpf" placeholder="CPF (somente números ou formatado)" />
+        <input type="text" id="identificador_biometrico" name="identificador_biometrico" placeholder="ID biométrico do equipamento" />
+        <button type="submit">Salvar vínculo biométrico</button>
       </form>
 
       <form class="filtro" method="post" action="/admin/importar_quadro" enctype="multipart/form-data">

@@ -42,9 +42,13 @@ app = Flask(__name__)
 # ------------------------------------------------
 from routes_main import bp_main
 from routes_admin import bp_admin
+from routes_biometria import bp_biometria
+from routes_relatorio import bp_relatorio
 
 app.register_blueprint(bp_main)
 app.register_blueprint(bp_admin)
+app.register_blueprint(bp_biometria)
+app.register_blueprint(bp_relatorio)
 
 
 

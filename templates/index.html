@@ -70,10 +70,11 @@
       <img class="logo" src="/static/logo_ifc_horizontal_SaoBentodosul.png" onerror="this.onerror=null;this.src='/static/logo-ifc.svg';" alt="Instituto Federal Catarinense" />
       <h1>Registrar almoço</h1>
 
-      {% if cardapio_hoje %}
       <section class="cardapio">
-        <h2>Cardápio de hoje</h2>
+        <h2>{% if cardapio_hoje or cardapio_imagem %}Cardápio de hoje{% else %}Galeria do campus{% endif %}</h2>
+        {% if cardapio_hoje %}
         <p>{{ cardapio_hoje }}</p>
+        {% endif %}
         <div class="galeria-flutuante" data-galeria data-intervalo="2000">
           {% if cardapio_imagem %}
           <div class="galeria-slide active">
@@ -125,44 +126,6 @@
         <div class="galeria-bolinhas" data-galeria-bolinhas></div>
         <p class="galeria-dica">Passe o mouse sobre a imagem para pausar a rotação.</p>
       </section>
-      {% elif cardapio_imagem %}
-      <section class="cardapio">
-        <h2>Cardápio de hoje</h2>
-        <div class="galeria-flutuante" data-galeria data-intervalo="2000">
-          <div class="galeria-slide active">
-            <div class="galeria-card real">
-              <img src="{{ url_for('main.cardapio_imagem', nome_arquivo=cardapio_imagem) }}" alt="Imagem ilustrativa do cardápio do dia" />
-            </div>
-          </div>
-          {% for imagem in galeria_imagens %}
-          <div class="galeria-slide">
-            <div class="galeria-card real">
-              <img src="{{ url_for('static', filename=imagem) }}" alt="Imagem institucional do campus ou refeitório" />
-            </div>
-          </div>
-          {% endfor %}
-          {% if not galeria_imagens %}
-          <div class="galeria-slide">
-            <div class="galeria-card institucional">
-              <img class="marca" src="/static/logo_ifc_horizontal_SaoBentodosul.png" alt="" />
-              <div class="galeria-conteudo">
-                <div>
-                  <strong>Campus Sao Bento do Sul</strong>
-                  <p>Card institucional para demonstrar a transicao entre imagens no topo.</p>
-                </div>
-                <div class="galeria-legenda">
-                  <strong>Rotacao de fotos</strong>
-                  <span>Coloque imagens em static/galeria e o carrossel passa a usa-las automaticamente.</span>
-                </div>
-              </div>
-            </div>
-          </div>
-          {% endif %}
-        </div>
-        <div class="galeria-bolinhas" data-galeria-bolinhas></div>
-        <p class="galeria-dica">Passe o mouse sobre a imagem para pausar a rotação.</p>
-      </section>
-      {% endif %}
 
       {% if sucesso %}
       <div class="alert ok">Resposta registrada com sucesso. Se precisar, você pode enviar novamente para atualizar sua escolha.</div>
@@ -175,6 +138,9 @@
       <form action="{{ url_for('main.enviar') }}" method="post">
         <label for="nome">Nome completo</label>
         <input id="nome" name="nome" type="text" required />
+
+        <label for="matricula">Matrícula</label>
+        <input id="matricula" name="matricula" type="text" placeholder="Ex: 2026001" />
 
         <label for="turma">Turma</label>
         <div class="turma-picker">

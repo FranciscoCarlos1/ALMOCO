@@ -224,6 +224,7 @@ def registrar_biometria():
 @bp_main.post("/enviar")
 def enviar():
     nome = request.form.get("nome", "").strip()
+    matricula = request.form.get("matricula", "").strip()
     turma = request.form.get("turma", "").strip()
     data_referencia = request.form.get("data_almoco", "").strip()
     dias_raw = request.form.getlist("dias")
@@ -257,7 +258,8 @@ def enviar():
     else:
         data_ref = date.today()
 
-    matricula = f"AUTO::{turma}::{nome}".upper()
+    if not matricula:
+        matricula = f"AUTO::{turma}::{nome}".upper()
     segunda = week_start(data_ref)
     datas_semana = {
         "seg": segunda,
